@@ -79,6 +79,13 @@ flowchart TB
 
 ## 快速开始
 
+```bash
+make up       # Docker 一键启动（需先配置根目录 .env）
+make ingest   # 构建知识库
+make test     # 后端测试
+make help     # 查看全部命令（含本地开发/测评/压测）
+```
+
 > 完整启动/测试指南见 [`docs/QUICKSTART.md`](docs/QUICKSTART.md)。
 
 ```bash
