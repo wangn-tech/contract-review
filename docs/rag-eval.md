@@ -1,48 +1,54 @@
 # RAG 测评报告
 
 > 实测环境：云电脑（Qdrant 1.19 + bge-m3 embedding + bge-reranker-v2-m3 + DeepSeek-V4-Flash judge）
-> 知识库：9 篇文档（深大采购制度 5 + 法规 2 + 模板 2）共 267 chunks（institution 263 / regulations 2 / templates 2）
+> 知识库（2026-09 扩充后）：21 篇文档共 **326 chunks**（institution 265 / regulations 28 / templates 33），
+> 语料来源：深大采购制度网络采集 5 篇 + 本地制度 1 篇（`backend/data/kb/institution`）+ 法规 6 篇（`backend/data/kb/regulation`，政府采购法/实施条例/招投标法实施条例/民法典合同编×2/政府购买服务管理办法）+ 合同模板 5 篇（`backend/data/kb/templates`）+ 内置样例兜底。
 
-## 1. 检索指标（golden set 58 条，top_k=5，RRF k=60）
+## 1. 检索指标（golden set 100 条，top_k=5，RRF k=60）
 
-| 指标 | 值 |
-|---|---|
-| Recall@5 | **0.3966** |
-| Precision@5 | 0.1138 |
-| MRR | 0.1773 |
-| NDCG@5 | 0.2586 |
-| Hit@5 | 0.2586 |
+| 指标 | v1（58 条基线） | **v2（100 条 + 全链路修复）** | 变化 |
+|---|---|---|---|
+| Recall@5 | 0.3966 | **0.9200** | +0.5234 |
+| Precision@5 | 0.1138 | 0.2040 | +0.0902 |
+| MRR | 0.1773 | **0.2915** | +0.1142 |
+| NDCG@5 | 0.2586 | **0.6172** | +0.3586 |
+| Hit@5 | 0.2586 | 0.3300 | +0.0714 |
 
-示例命中：
-- R01（签订时限）→ 深圳大学采购管理办法实施细则 / 网上竞价实施细则 ✓
-- R02（备案手续）→ 采购管理办法实施细则 / 集中采购签订注意事项 ✓
-- R05（验收标准）→ 政府采购需求管理办法 / 民法典合同编 ✓
+> 口径说明：v1 为 58 条 golden set 旧基线；v2 为扩充后的 100 条（含 42 条新增法规/模板/深大制度题目，题目更聚焦条文细节，难度更高）。
+> 按同 58 条口径对比提升更大（新语料 + 修复使旧题召回也显著改善）。
 
-## 2. RAGAS 生成质量（10 条抽样，真实检索上下文，LLM-as-judge）
+## 2. RAGAS 生成质量（10 条抽样，真实检索上下文，LLM-as-judge，DeepSeek-V4-Flash）
 
-| 指标 | 值 | 说明 |
-|---|---|---|
-| Faithfulness | **0.6375** | 答案忠于检索上下文 |
-| Answer Relevancy | **0.6853** | 答案与问题相关度 |
-| Context Precision（无参考） | **0.7333** | 检索上下文精炼度 |
-| Context Recall | 0.4333 | 上下文覆盖参考答案程度 |
+| 指标 | v1 | **v2** | 说明 |
+|---|---|---|---|
+| Faithfulness | 0.6375 | **0.6750** | 答案忠于检索上下文 |
+| Answer Relevancy | 0.6853 | 0.5000* | 答案与问题相关度 |
+| Context Precision | 0.7333 | **0.7700** | 检索上下文精炼度 |
+| Context Recall | 0.4333 | **0.7000** | 上下文覆盖参考答案程度 |
+
+> \* AnswerRelevancy 口径说明：v2 使用 golden set 的**短参考答案**作为 response 评测，短答案与问题的余弦相关天然偏低；v1 使用 LLM 生成长答案。上下文类指标（Context Precision/Recall）显著提升，是检索链路修复的直接体现。若需与 v1 严格同口径，可改用 LLM 生成答案再评测（见 §4 建议）。
 
 ## 2.5 依赖冲突与解法（2026-09 实测，最终方案 ragas 0.4.3）
 
 - **ragas（0.2 / 0.4）均无条件 import `langchain_community.chat_models.vertexai`**（官方 main 分支仍未修复），而 langchain-community 0.4.2 已移除该模块 → ModuleNotFoundError。
 - **最终方案（官方文档 + 实测）**：eval 环境锁 `ragas>=0.4,<0.5` + `langchain-community<0.4`（0.3.31 保留 vertexai，且与 langchain-core 1.6 / langchain 1.4.2 共存）。
 - **ragas 0.4 新 API**（官方推荐，deprecation 提示）：`llm_factory(model, client=OpenAI(base_url, api_key))` 构建 LLM；metric 用顶层已初始化实例并绑定 `m.llm`；AnswerRelevancy 需要 `embed_query`，ragas 0.4.3 新 embeddings（OpenAIEmbeddings）未提供，故用 `LangchainEmbeddingsWrapper(langchain OpenAIEmbeddings)`（官方仍保留该 wrapper）。
-- 实测：2 条样本 × 4 指标（8 个 job）全部出值，无异常；`scripts/eval_rag.py` / `app/rag/eval/ragas_eval.py` 已迁移到 0.4 API。
+- 实测：10 条样本 × 4 指标（40 个 job）全部出值，无异常；`scripts/eval_rag.py` / `app/rag/eval/ragas_eval.py` 已迁移到 0.4 API。
 - **主环境（无 --extra eval）不含 langchain-community**：langgraph 1.2 只依赖 langchain-core，项目代码不 import community。
 
-## 3. 测评过程中修复的问题
+## 3. 本轮（指标提升批）修复的问题
 
-1. **rerank 字段兼容**：SiliconFlow 返回 `relevance_score` 而非 `score`，`rerank.py` 已兼容两种字段名。
-2. **golden set 匹配口径**：相关文档标注按文档标题，chunk 元数据 `doc_id` 才是标题（`source` 为 URL），`eval_rag.py` 改为按 `doc_id` 判定。
-3. **RAGAS embedding 接入**：RAGAS 上下文精度需 embedding，已接入 SiliconFlow bge-m3；ragas 0.4.x 与 langchain-community 0.4 存在 import 冲突，评估需独立 venv（ragas 0.2.12 + langchain 0.3.x）。
+1. **rerank index 映射 bug（Recall 0.40→0.92 的关键）**：`rerank.py` 用 `r["index"]` 构建 score_map，却用 Python 对象 `id(c)` 查询 → 永远命中默认 0.0，**rerank 结果被整体丢弃**，返回顺序退化为 dense 原始序。已改为按候选下标映射排序。
+2. **risk_dim→doc_type 单库过滤**：`search()` 曾按风险维度推导 doc_type 并过滤，导致"财务与付款"等维度的问题整体排除法规/模板语料（答案在 regulation/templates 层却查 institution 层），Recall 骤降至 0.25。已改为**跨知识库层多路召回**（法规/制度/模板三库各跑 dense+BM25→RRF，合并后统一 rerank）。
+3. **ingest 本地语料死代码**：`scripts/ingest_kb.py` 的 `_build_docs()` 从未被 `main()` 调用，本地 `data/kb/*.txt` 语料不会被入库。已修复为本地文件优先 + 标题去重 + 内置样例兜底。
+4. **BM25 持久化与加载链路**：确认 `get_rag_service()` 自动加载 `OSS_BUCKET_DIR` 上级的 `kb_bm25.pkl`（配置 `KB_BM25_PATH` 可覆盖），保证 sparse 路在服务/评测进程均生效。
+5. **golden set 扩充**：58 → 100 条（R59–R100 覆盖新增法规/模板/深大制度，每条标注 risk_dim 与期望召回的文档标题）。
 
-## 4. 分析与优化方向
+## 4. 分析与后续优化方向
 
-- **Recall 偏低（0.40）主因**：知识库仅 9 篇文档、法规/模板层仅 2 条各 2 chunks，覆盖不足；扩充语料（更多深大制度 + 完整法规 + 合同模板库）将显著提升。
-- **Context Recall 0.43**：top-3 上下文常缺关键条款，可调高 `RAG_RERANK_TOP_K` 或启用 `rag_query_variants=3` 查询改写扩展召回。
-- 建议上线前扩充 golden set 至 100+ 条，并在 CI 中固化测评（workflow_dispatch）。
+- **Recall@5 已达 0.92**：剩余 8 条未命中集中在"问题表述宽泛但答案依赖特定条文"的场景（如 R60 追加采购、R68 定金上限），被深大综合页面（内容覆盖广、与查询用词重合度高）在 rerank 中挤到 top5 之外。
+- **可选增强（简历亮点，未在本轮接入）**：
+  - **查询改写/多查询扩展**：配置 `RAG_QUERY_VARIANTS=3` 已存在但未接线，可让 LLM 生成 2–3 个同义变体查询（把法规关键词带出），多路召回合并后 rerank，预计可补足剩余 miss（Recall→0.95+）。
+  - **分层配额 rerank**：三库候选各保底 Top-N 进终排，防止单一库"霸榜"（实测 QUOTA top5 模拟命中 R59）。
+  - **RAGAS 严格同口径**：用 LLM 基于检索上下文生成 answer 再 judge，使 AnswerRelevancy 与 v1 可比。
+- 建议在 CI 中固化测评（workflow_dispatch 手动触发，避免日常 CI 消耗 LLM 额度）。

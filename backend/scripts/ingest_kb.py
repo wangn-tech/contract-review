@@ -69,10 +69,27 @@ async def main() -> None:
         docs.append(
             {"title": page["title"], "source": page["source"], "doc_type": "institution", "text": page["text"]}
         )
+    # 本地语料优先（data/kb/{institution,regulation,templates}/*.txt），标题去重
+    for folder, doc_type in [
+        ("institution", "institution"),
+        ("regulation", "regulation"),
+        ("templates", "template"),
+    ]:
+        for path in sorted((DATA_DIR / folder).glob("*.txt")):
+            title = path.stem
+            if any(d["title"] == title for d in docs):
+                continue
+            docs.append(
+                {"title": title, "source": f"file://{path}", "doc_type": doc_type,
+                 "text": path.read_text(encoding="utf-8")}
+            )
+    # 内置样例仅作为兜底（本地同名标题时跳过）
     for title, text in REGULATION_SAMPLES.items():
-        docs.append({"title": title, "source": "公开法规原文（人工整理）", "doc_type": "regulation", "text": text})
+        if not any(d["title"] == title for d in docs):
+            docs.append({"title": title, "source": "公开法规原文（人工整理）", "doc_type": "regulation", "text": text})
     for title, text in TEMPLATE_SAMPLES.items():
-        docs.append({"title": title, "source": "自建样例模板", "doc_type": "template", "text": text})
+        if not any(d["title"] == title for d in docs):
+            docs.append({"title": title, "source": "自建样例模板", "doc_type": "template", "text": text})
 
     print(f"  共 {len(docs)} 个文档")
 

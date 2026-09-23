@@ -20,9 +20,15 @@ async def rerank_chunks(
 
     documents = [c.chunk.text for c in candidates]
     results = await get_sf_client().rerank(query, documents, top_n=min(top_k, len(candidates)))
-    # SiliconFlow rerank 返回 relevance_score（OpenAI 兼容格式），兼容两种字段名
+    # SiliconFlow rerank 返回 relevance_score（OpenAI 兼容格式），兼容两种字段名；
+    # 注意 r["index"] 是候选在 documents 中的下标，不能用 Python 对象 id 查映射。
     score_map = {
         r["index"]: r.get("score", r.get("relevance_score", 0.0)) for r in results
     }
-    ordered = sorted(candidates, key=lambda c: score_map.get(id(c), 0.0), reverse=True)
-    return [RetrievedChunk(chunk=c.chunk, score=score_map.get(id(c), 0.0)) for c in ordered[:top_k]]
+    ordered = sorted(
+        enumerate(candidates), key=lambda x: score_map.get(x[0], 0.0), reverse=True
+    )
+    return [
+        RetrievedChunk(chunk=c.chunk, score=score_map.get(i, 0.0))
+        for i, c in ordered[:top_k]
+    ]

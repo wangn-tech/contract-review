@@ -59,6 +59,7 @@ class Settings(BaseSettings):
 
     # rag
     rag_hybrid_top_k: int = 60
+    kb_bm25_path: str = ""  # 空则自动推导为 OSS_BUCKET_DIR 上级的 kb_bm25.pkl
     rag_rerank_top_k: int = 5
     rag_query_variants: int = 3
 
