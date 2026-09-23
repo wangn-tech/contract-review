@@ -63,7 +63,7 @@ uv run python scripts/ingest_kb.py     # 构建知识库到 Qdrant + BM25
 ```bash
 cd backend
 
-# 4.1 单元测试 + 集成测试（25+ 项，无需外部服务）
+# 4.1 单元测试 + 集成测试（33 项，无需外部服务）
 uv run pytest tests/ -q
 
 # 4.2 代码规范检查
@@ -78,6 +78,7 @@ uv run --extra eval python scripts/eval_rag.py
 # 产出：Recall@K / Precision@K / MRR / NDCG@K / Hit@K（golden set 58 条）
 
 # 4.5 RAGAS 生成质量测评（LLM-as-judge，需 SILICONFLOW_API_KEY）
+#     eval 环境：ragas 0.4.3 + langchain-community<0.4（ragas 依赖 vertexai 模块，community 0.4 已移除）
 uv run --extra eval python - << 'EOF'
 import asyncio
 from app.rag.eval.golden_set import GOLDEN_SET
@@ -108,6 +109,12 @@ locust -f scripts/bench_locust.py --host http://localhost:8080 \
 ```
 
 关键指标（回填至 `docs/benchmark.md`）：登录/列表延迟 P50/P95、审阅 SSE **TTFT** 与完整时长、聊天 SSE 首 token 延迟、成功率与吞吐。
+
+## 5.5 文档解析与 MCP
+
+- **多引擎解析**：默认回退链 `pdfplumber→pymupdf→pypdf→docx→libreoffice→ocr`；OCR 需要系统 poppler（pdftoppm）与 tesseract（中文包 chi_sim），缺失时自动跳过；复杂版面可选 `uv sync --extra heavy-doc`（docling/mineru）。配置 `DOC_PARSER_ENGINES` 调整引擎集。
+- **MCP Server**：`uv run python -m app.mcp.server`（stdio，供 Claude/Cursor 等客户端）；或 `.env` 设 `MCP_ENABLED=true` 后经 `/api/mcp`（streamable-http）接入；工具：search_knowledge_base / ask_contract_assistant / health_check。
+- **规则引擎 Skills**：`app/skills/rules.py` 提供 6 维度 8 条确定性规则（预付款>30%、违约金基数、验收标准等），输出与 LLM 专家同构，可并入审阅。
 
 ## 6. 常见问题
 

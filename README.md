@@ -28,7 +28,10 @@
 | 知识库 | 深大采购制度 + 法规 + 合同模板三层语料，自动 ingest |
 | 管理配置 | 合同类型 / 专家提示词 / 模型参数在线配置 |
 | 依赖策略 | 仅用官方独立包：langgraph / langchain-core / langchain-openai + 原生 openai SDK；**主环境不含 langchain-community** |
-| RAGAS 评估 | `uv sync --extra eval`（ragas 0.2.x + langchain-community<0.4）；ragas 需要 community 的 vertexai 模块，community 0.4 已移除，故 eval 环境锁 <0.4 |
+| 多引擎解析 | pdfplumber→PyMuPDF→pypdf→docx→LibreOffice→OCR→DeepSeek OCR→Docling/MinerU 有序回退链（引擎可配置） |
+| 中间件 / 缓存 | 全局鉴权 + 请求日志 + Redis 限流中间件；Redis 缓存（token/对话历史）+ 分布式锁（登录/审阅并发） |
+| MCP / 规则引擎 | MCP Server（2.x）暴露检索/问答工具（stdio + SSE）；6 维度确定性规则 Skills（LLM+规则双引擎） |
+| RAGAS 评估 | `uv sync --extra eval`（ragas **0.4.3** + langchain-community<0.4）；ragas 依赖 community 的 vertexai 模块（0.4 已移除），eval 环境锁 <0.4 解决 |
 
 
 ## 技术栈
@@ -38,7 +41,7 @@
 | Agent 编排 | LangGraph（状态机 · 条件路由 · 节点并行）、LangChain Core/OpenAI、提示词模板独立 .md |
 | RAG | Qdrant + BAAI/bge-m3（稠密）、BM25 + jieba（稀疏）、RRF 融合、bge-reranker-v2-m3 精排 |
 | LLM | OpenAI SDK 接入任意 OpenAI-compatible 供应商（默认 SiliconFlow）：DeepSeek-V3.2（审阅）、DeepSeek-V4-Flash（意图/聊天）、bge 系列（embedding/rerank） |
-| 后端 | FastAPI · SQLAlchemy 2 · Pydantic v2 · JWT(PBKDF2) · SSE · Langfuse |
+| 后端 | FastAPI · SQLAlchemy 2 · Pydantic v2 · JWT(PBKDF2) · SSE · Langfuse · 多引擎文档解析 · Redis 中间件/锁 · MCP · 规则 Skills |
 | 前端 | Vue3 + TypeScript + Vite + Element Plus + Pinia + ECharts |
 | 工程化 | Docker Compose（六服务）· GitHub Actions（5 Job）· Locust · uv |
 
@@ -98,7 +101,11 @@ backend/
   app/agent/       LangGraph 状态机、节点（意图/分发/专家/质检/仲裁）、提示词模板
   app/rag/         ingest（chunker/crawler/loader）、retrievers（hybrid/BM25）、rerank、eval
   app/api/         FastAPI 路由（auth/contracts/sessions/reviews/comparisons/chats/admin/dashboard）
-  app/services/    审阅编排（SSE）、聊天（SSE）、文档解析
+  app/services/    审阅编排（SSE）、聊天（SSE）、多引擎文档解析
+  app/middlewares/ 全局鉴权 / 请求日志 / Redis 限流
+  app/mcp/         MCP Server（2.x）/ Client
+  app/skills/      6 维度确定性规则引擎
+  app/core/        Redis 缓存 + 分布式锁（cache.py）
   scripts/         ingest_kb.py（知识库构建）、eval_rag.py（RAG 测评）、bench_locust.py（压测）
 frontend/          Vue3 + TS + Vite + Element Plus + Pinia + ECharts
 deploy/            docker-compose（六服务）
@@ -121,4 +128,5 @@ docs/              架构图、设计文档、压测/测评报告
 
 1. **Multi-Agent 编排**：LangGraph 状态机（意图识别 → 分发 → 6 专家并行 → 质检 → 仲裁），提示词模板化 + JSON Schema 约束 + 规则降级兜底，专家并行（信号量限流 20）。
 2. **RAG 全链路**：混合检索（dense + sparse → RRF → cross-encoder 重排）、知识分层、证据可追溯、检索指标（Recall@K / MRR / NDCG）+ RAGAS 四指标测评。
-3. **工程化**：FastAPI 分层、SSE 流式、统一异常、CI 五阶段、Docker Compose 六服务、Langfuse 可观测、Locust 压测指标。
+3. **工程化**：FastAPI 分层、SSE 流式（真流式 TTFT 37s）、统一异常、Redis 缓存+分布式锁、多引擎文档解析、MCP 接入、CI 五阶段、Docker Compose 六服务、Langfuse 可观测、Locust 压测指标。
+4. **评测闭环**：golden set 58 条检索指标 + RAGAS 0.4.3 四指标测评（LLM-as-judge），LLM 供应商经 OpenAI SDK 抽象可随时切换。

@@ -64,7 +64,7 @@ flowchart LR
 
 ### 3.1 技术栈
 
-Python 3.11 · FastAPI · Pydantic v2 · SQLAlchemy 2 + PyMySQL · LangGraph + LangChain Core · sse-starlette · Qdrant 客户端 · pypdf/pdfplumber + python-docx（文档解析）· langfuse SDK · ruff（lint/format）
+Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + PyMySQL · LangGraph + LangChain Core · openai SDK · sse-starlette · Qdrant 客户端 · 多引擎文档解析（pdfplumber/pymupdf/pypdf/docx/libreoffice/OCR/Docling/MinerU）· redis · mcp · langfuse SDK · ruff（lint/format）
 
 ### 3.2 目录结构
 
