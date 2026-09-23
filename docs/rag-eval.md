@@ -27,11 +27,12 @@
 | Context Precision（无参考） | **0.7333** | 检索上下文精炼度 |
 | Context Recall | 0.4333 | 上下文覆盖参考答案程度 |
 
-## 2.5 依赖冲突与解法（2026-09 实测）
+## 2.5 依赖冲突与解法（2026-09 实测，最终方案 ragas 0.4.3）
 
-- **ragas 0.4.x / 0.2.x 均 import `langchain_community.chat_models.vertexai`**，而 langchain-community 0.4.2 已移除该模块 → ModuleNotFoundError。
-- 解法：eval 环境锁 `ragas>=0.2,<0.3` + `langchain-community<0.4`（0.3.31 保留 vertexai，且与 langchain-core 1.6 / langchain 1.4 共存）。
-- 实测：2 条样本 8 个评估 job 全通过（faithfulness/answer_relevancy/context_precision/context_recall 全部出值）。
+- **ragas（0.2 / 0.4）均无条件 import `langchain_community.chat_models.vertexai`**（官方 main 分支仍未修复），而 langchain-community 0.4.2 已移除该模块 → ModuleNotFoundError。
+- **最终方案（官方文档 + 实测）**：eval 环境锁 `ragas>=0.4,<0.5` + `langchain-community<0.4`（0.3.31 保留 vertexai，且与 langchain-core 1.6 / langchain 1.4.2 共存）。
+- **ragas 0.4 新 API**（官方推荐，deprecation 提示）：`llm_factory(model, client=OpenAI(base_url, api_key))` 构建 LLM；metric 用顶层已初始化实例并绑定 `m.llm`；AnswerRelevancy 需要 `embed_query`，ragas 0.4.3 新 embeddings（OpenAIEmbeddings）未提供，故用 `LangchainEmbeddingsWrapper(langchain OpenAIEmbeddings)`（官方仍保留该 wrapper）。
+- 实测：2 条样本 × 4 指标（8 个 job）全部出值，无异常；`scripts/eval_rag.py` / `app/rag/eval/ragas_eval.py` 已迁移到 0.4 API。
 - **主环境（无 --extra eval）不含 langchain-community**：langgraph 1.2 只依赖 langchain-core，项目代码不 import community。
 
 ## 3. 测评过程中修复的问题

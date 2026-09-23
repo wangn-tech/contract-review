@@ -26,44 +26,42 @@ def build_ragas_dataset(
 async def run_ragas_eval(dataset: list[dict], llm_model: str | None = None) -> dict:
     """执行 RAGAS 四指标评估（LLM-as-judge）。"""
     import ragas.evaluation as ragas_eval_mod
-    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+    from langchain_openai import OpenAIEmbeddings as LCOpenAIEmbeddings
+    from openai import OpenAI
     from ragas import EvaluationDataset, evaluate
     from ragas.embeddings import LangchainEmbeddingsWrapper
-    from ragas.llms import LangchainLLMWrapper
+    from ragas.embeddings import OpenAIEmbeddings as RagasOpenAIEmbeddings
+    from ragas.llms import llm_factory
     from ragas.metrics import (
-        Faithfulness,
-        LLMContextPrecisionWithoutReference,
-        LLMContextRecall,
-        ResponseRelevancy,
+        answer_relevancy,
+        context_precision,
+        context_recall,
+        faithfulness,
     )
 
     from app.core.config import get_settings
 
     settings = get_settings()
-    llm = ChatOpenAI(
-        model=llm_model or settings.llm_chat_model,
-        base_url=settings.siliconflow_base_url,
-        api_key=settings.siliconflow_api_key,
-        temperature=0,
+    base = settings.llm_base_url or settings.siliconflow_base_url
+    api_key = settings.llm_api_key or settings.siliconflow_api_key
+    client = OpenAI(base_url=base, api_key=api_key)
+    # ragas 0.4 官方推荐：llm_factory + metric 实例绑定
+    llm = llm_factory(llm_model or settings.llm_chat_model, client=client)
+    modern_emb = RagasOpenAIEmbeddings(client=client, model=settings.embedding_model)
+    # AnswerRelevancy 依赖 embed_query（ragas 0.4.3 新 embeddings 未提供），用 langchain wrapper
+    legacy_emb = LangchainEmbeddingsWrapper(
+        LCOpenAIEmbeddings(base_url=base, api_key=api_key, model=settings.embedding_model)
     )
-    wrapper = LangchainLLMWrapper(llm)
-    # RAGAS 上下文精度指标依赖 embedding：接入 SiliconFlow bge-m3
-    embeddings = LangchainEmbeddingsWrapper(
-        OpenAIEmbeddings(
-            model=settings.embedding_model,
-            base_url=settings.siliconflow_base_url,
-            api_key=settings.siliconflow_api_key,
-        )
-    )
-    ragas_eval_mod.embedding_factory = lambda *args, **kwargs: embeddings
+    for m in (faithfulness, context_precision, context_recall):
+        m.llm = llm
+    answer_relevancy.llm = llm
+    answer_relevancy.embeddings = legacy_emb
+    ragas_eval_mod.embedding_factory = lambda *args, **kwargs: modern_emb
     eval_dataset = EvaluationDataset.from_list(dataset)
     result = evaluate(
         dataset=eval_dataset,
-        metrics=[
-            Faithfulness(llm=wrapper),
-            ResponseRelevancy(llm=wrapper),
-            LLMContextPrecisionWithoutReference(llm=wrapper),
-            LLMContextRecall(llm=wrapper),
-        ],
+        metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
+        llm=llm,
+        embeddings=modern_emb,
     )
     return result.to_pandas().to_dict(orient="records")
