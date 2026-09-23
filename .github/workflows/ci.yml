@@ -81,3 +81,38 @@ jobs:
       - name: Deploy hook (customize for your server)
         run: |
           echo "::notice::Deploy step is a placeholder. Connect SSH/webhook or registry push here."
+
+  rag-eval:
+    name: RAG Eval Gate (golden set)
+    runs-on: ubuntu-latest
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.13.4
+        ports:
+          - 6333:6333
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Golden set static gate (no key required)
+        run: uv run python scripts/check_golden.py
+      - name: Full retrieval eval + metric gate (requires SILICONFLOW_API_KEY secret)
+        if: env.SILICONFLOW_API_KEY != ''
+        env:
+          SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+          QDRANT_HOST: localhost
+          QDRANT_PORT: "6333"
+          DATABASE_URL: sqlite://
+          JWT_SECRET_KEY: ci-secret-0123456789abcdef
+        run: |
+          uv run python scripts/ingest_kb.py
+          uv run python scripts/eval_rag.py | tee /tmp/eval.out
+          uv run python scripts/gate_metrics.py --recall5 0.6 --mrr 0.4 --ndcg 0.5
+      - name: Skip notice (no secret configured)
+        if: env.SILICONFLOW_API_KEY == ''
+        run: echo "::notice::SILICONFLOW_API_KEY secret 未配置，跳过完整检索评测（静态门禁已通过）；配置 secret 后自动成为指标门禁"

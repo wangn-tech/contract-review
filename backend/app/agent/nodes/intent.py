@@ -1,23 +1,16 @@
 """Intent classifier node: structured output classification + rule-based fallback.
 
 简历点：混合路由——LLM 主分类（OpenAI structured output json_schema，解析稳定），
-解析失败/低置信时降级到关键词规则引擎，再兜底默认意图，保证路由 100% 可达。
+解析失败/低置信时降级到独立规则引擎（app/agent/rules/intent_rules.py：强关键词、
+组合规则、否定词降权、同分仲裁），再兜底默认意图，保证路由 100% 可达。
 """
 from app.agent.prompts import load_prompt
+from app.agent.rules.intent_rules import rule_classify
 from app.agent.state import ReviewState
 from app.core.config import get_settings
 from app.rag.client import get_sf_client
 
 settings = get_settings()
-
-INTENT_KEYWORDS: dict[str, list[str]] = {
-    "review": ["审阅", "审查", "风险", "审一下", "看看问题", "评估", "条款"],
-    "compare": ["比对", "对比", "差异", "两个合同", "区别"],
-    "admin": ["配置", "合同类型", "模型", "提示词", "prompt", "管理"],
-    "chat": ["问答", "咨询", "是什么", "怎么", "请问", "解释"],
-}
-
-RULE_FALLBACK_INTENT = "chat"
 
 INTENT_SCHEMA: dict = {
     "type": "object",
@@ -31,12 +24,9 @@ INTENT_SCHEMA: dict = {
 
 
 def _rule_classify(text: str) -> tuple[str, float]:
-    best_intent, best_score = RULE_FALLBACK_INTENT, 0.0
-    for intent, keywords in INTENT_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in text)
-        if score > best_score:
-            best_intent, best_score = intent, float(score)
-    return best_intent, min(best_score * 0.2, 0.6)
+    # 独立规则引擎：确定性、可评测（tests/test_intent_rules.py）
+    intent, confidence, _matched = rule_classify(text)
+    return intent, confidence
 
 
 async def _llm_classify(text: str) -> tuple[str, float] | None:
