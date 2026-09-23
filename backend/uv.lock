@@ -634,6 +634,7 @@ eval = [
 [package.dev-dependencies]
 dev = [
     { name = "fakeredis" },
+    { name = "python-docx" },
 ]
 
 [package.metadata]
@@ -672,7 +673,10 @@ requires-dist = [
 provides-extras = ["dev", "eval", "bench"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "fakeredis", specifier = ">=2.38.0" }]
+dev = [
+    { name = "fakeredis", specifier = ">=2.38.0" },
+    { name = "python-docx", specifier = ">=1.2.0" },
+]
 
 [[package]]
 name = "cryptography"

@@ -56,7 +56,7 @@ async def stream_review_events(
     session = db.get(Session, request.session_id)
     if session is None or session.user_id != current_user.id:
         raise PermissionError("session not found")
-    contract = db.get(ContractFile, request.file_id) if session.file_id else None
+    contract = db.get(ContractFile, session.file_id) if session.file_id else None
     if contract is None:
         raise PermissionError("contract file not found")
     if contract.parse_status != "parsed" or not contract.content_path:

@@ -3,8 +3,10 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("DEBUG", "false")
-os.environ.setdefault("JWT_SECRET_KEY", "test-secret")
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-0123456789abcdef")
 os.environ.setdefault("REDIS_HOST", "localhost")
+os.environ.setdefault("UPLOAD_DIR", "/tmp/contract-review-uploads")
+os.environ.setdefault("OSS_BUCKET_DIR", "/tmp/contract-review-parsed")
 
 import fakeredis.aioredis
 import pytest
