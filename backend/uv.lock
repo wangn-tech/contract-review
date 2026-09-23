@@ -634,7 +634,10 @@ eval = [
 [package.dev-dependencies]
 dev = [
     { name = "fakeredis" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "python-docx" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -675,7 +678,10 @@ provides-extras = ["dev", "eval", "bench"]
 [package.metadata.requires-dev]
 dev = [
     { name = "fakeredis", specifier = ">=2.38.0" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-asyncio", specifier = ">=0.25" },
     { name = "python-docx", specifier = ">=1.2.0" },
+    { name = "ruff", specifier = ">=0.9" },
 ]
 
 [[package]]
