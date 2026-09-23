@@ -52,7 +52,7 @@ async def _run_specialist(
     state: ReviewState,
     rag: RAGService,
 ) -> dict:
-    """单个 (chunk, risk_dim) 专家任务：ReAct 循环。"""
+    """单个 (chunk, risk_dim) 专家任务：ReAct 循环 + 故障隔离（失败重试 1 次）。"""
     async with sem:
         sf = get_sf_client()
         dim_prompt = load_risk_dim_prompt(risk_dim)
@@ -69,15 +69,25 @@ async def _run_specialist(
         evidence_ctx = ""
         for _ in range(MAX_REACT_ROUNDS):
             user_msg = f"【合同条款】\n{chunk}\n\n【检索证据】\n{evidence_ctx or '（未检索）'}\n\n请完成审阅并输出 JSON。"
-            raw = await sf.chat(
-                [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user_msg},
-                ],
-                model=settings.llm_review_model,
-                temperature=0.2,
-                max_tokens=2048,
-            )
+            try:
+                raw = await sf.chat(
+                    [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    model=settings.llm_review_model,
+                    temperature=0.2,
+                    max_tokens=2048,
+                )
+            except Exception as exc:  # noqa: BLE001
+                # 故障隔离：LLM 调用失败不拖垮整体，记录后重试一轮（再失败返回空结果）
+                state.setdefault("errors", []).append(
+                    f"specialist[{risk_dim}] llm error: {exc}"
+                )
+                if evidence_ctx:
+                    break
+                evidence_ctx, _ = await rag.search_with_context(chunk, risk_dim=risk_dim, top_k=3)
+                continue
             points = _parse_risk_points(raw)
             if points:
                 return {"chunk_index": state["chunks"].index(chunk), "risk_dim": risk_dim, "result": points}

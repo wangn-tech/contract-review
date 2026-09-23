@@ -1,7 +1,5 @@
 """LangGraph review agent state definition."""
-from typing import Annotated, TypedDict
-
-from langgraph.graph.message import add_messages
+from typing import TypedDict
 
 # 6 个风险维度专家
 RISK_DIMS = [
@@ -39,7 +37,7 @@ class ReviewState(TypedDict):
     intent: str                           # review / compare / chat / admin
     intent_confidence: float
     routed: list[dict]                    # [{chunk_index, risk_dims}]
-    specialist_outputs: Annotated[list[dict], add_messages]  # [{chunk_index, risk_dim, result}]
+    specialist_outputs: list[dict]  # [{chunk_index, risk_dim, result}]
     gated: list[dict]                     # 质检通过的结果
     final_risk_points: list[dict]         # 仲裁后按 index 排序
     summary: dict                         # {summary, suggestion, overall_risk}

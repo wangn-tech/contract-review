@@ -20,13 +20,17 @@ async def ensure_collection(client: AsyncQdrantClient, collection: str, vector_s
         await client.create_collection(
             collection_name=collection,
             vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE),
-            # 元数据过滤索引
-            payload_schema={
-                "doc_type": models.PayloadSchemaType.KEYWORD,
-                "source": models.PayloadSchemaType.KEYWORD,
-                "section": models.PayloadSchemaType.TEXT,
-            },
         )
+    # 元数据过滤索引（幂等：已存在时忽略错误）
+    for field in ("doc_type", "source"):
+        try:
+            await client.create_payload_index(
+                collection_name=collection,
+                field_name=field,
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
 
 async def upsert_chunks(client: AsyncQdrantClient, collection: str, chunks: list[Chunk], batch_size: int = 32) -> int:

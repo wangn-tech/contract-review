@@ -18,9 +18,12 @@ def build_graph(rag: RAGService):
     """组装状态机。specialist 依赖 rag 服务，用闭包注入。"""
     graph = StateGraph(ReviewState)
 
+    async def specialists(state: ReviewState) -> dict:
+        return await specialist_node(state, rag)
+
     graph.add_node("intent", intent_node)
     graph.add_node("router", router_node)
-    graph.add_node("specialists", lambda state: specialist_node(state, rag))
+    graph.add_node("specialists", specialists)
     graph.add_node("gate", gate_node)
     graph.add_node("arbitration", arbitration_node)
 
