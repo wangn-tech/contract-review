@@ -21,6 +21,7 @@ cp backend/.env.example .env
 vim .env                      # 填入 SILICONFLOW_API_KEY=sk-xxx
 
 # 2) 构建并启动六服务（mysql/redis/qdrant/langfuse/backend/frontend）
+#    .env 必须位于项目根目录（compose 通过 env_file: ../.env 注入 backend 容器）
 docker compose -f deploy/docker-compose.yml up -d --build
 
 # 3) 等待健康检查通过后，构建知识库（深大制度 + 法规 + 模板）
@@ -31,6 +32,10 @@ open http://localhost            # 注册账号 → 上传合同 → 发起审�
 ```
 
 > 服务端口：前端 `http://localhost`，后端 API `http://localhost:8080/api`，Langfuse `http://localhost:3000`，Qdrant `http://localhost:6333`。
+
+> **`.env` 位置约定**：统一放**项目根目录**（`cp backend/.env.example .env`）。
+> - Docker：`deploy/docker-compose.yml` 通过 `env_file: ../.env` 注入 backend 容器；
+> - 本地开发：`backend/app/core/config.py` 会回退读取上级目录 `../.env`，无需重复配置。
 
 ## 3. 本地开发模式（前后端分离）
 

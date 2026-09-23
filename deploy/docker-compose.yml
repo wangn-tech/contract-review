@@ -65,6 +65,10 @@ services:
     build:
       context: ../backend
     container_name: cr-backend
+    # 从项目根目录 .env 注入全部配置（含 SILICONFLOW_API_KEY）。
+    # 路径相对本 compose 文件（deploy/）解析；文件不存在会在此处直接报错，便于定位。
+    env_file:
+      - ../.env
     environment:
       APP_ENV: prod
       MYSQL_HOST: mysql
@@ -77,7 +81,7 @@ services:
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-jwt-secret}
-      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:?请在 .env 中配置 SILICONFLOW_API_KEY}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_HOST: http://langfuse:3000

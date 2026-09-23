@@ -6,7 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # 统一约定：.env 放项目根目录（compose/本地均可用）。
+        # 本地开发在 backend/ 下运行时会回退读取上级目录的 .env。
+        env_file=(".env", "../.env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
