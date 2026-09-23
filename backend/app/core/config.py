@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     kb_bm25_path: str = ""  # 空则自动推导为 OSS_BUCKET_DIR 上级的 kb_bm25.pkl
     rag_rerank_top_k: int = 5
     rag_query_variants: int = 3
+    rag_per_doc_quota: int = 3  # 分层配额：每个文档最多 N 个 chunk 进入 rerank
 
     # langfuse
     langfuse_public_key: str = ""

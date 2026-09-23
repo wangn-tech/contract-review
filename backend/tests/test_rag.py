@@ -62,6 +62,31 @@ def test_retrieval_metrics():
     assert ndcg_at_k(relevant, retrieved, 5) > 0.9
 
 
+def test_retrieval_metrics_substring_no_inflate():
+    """回归：子串匹配下同一相关关键词被多个文档命中不得让 recall 超 1。"""
+    from app.rag.eval.retrieval_metrics import evaluate_retrieval
+
+    cases = [(["政府采购法"], ["政府采购法·合同签订与验收", "政府采购法实施条例", "政府采购法·细则"])]
+    m = evaluate_retrieval(cases, k=5, matcher=lambda rel, d: any(kw in d for kw in rel))
+    assert m["recall@k"] <= 1.0
+    assert m["ndcg@k"] <= 1.0
+    assert m["hit@k"] == 1.0
+
+
+def test_query_expansion_fallback():
+    """回归：variants<=1 或 LLM 异常时降级为原查询，不影响主链路。"""
+    import asyncio
+
+    from app.rag.query_expansion import _parse_variants, expand_query
+
+    assert asyncio.run(expand_query("逾期付款违约金", variants=1)) == ["逾期付款违约金"]
+    # 容错解析：围栏 / 前后缀 / 非 JSON / 去重
+    assert _parse_variants('```json\n["a", "b"]\n```', 2) == ["a", "b"]
+    assert _parse_variants('好的，变体如下：["x", "y", "x"] 请查收', 2) == ["x", "y"]
+    assert _parse_variants("无数组", 2) == []
+    assert _parse_variants('{"k": 1}', 2) == []
+
+
 def test_retrieval_metrics_empty():
     m = {"recall@k": 0.0, "precision@k": 0.0, "mrr": 0.0, "ndcg@k": 0.0, "hit@k": 0.0}
     assert evaluate_aggregate([]) == m
