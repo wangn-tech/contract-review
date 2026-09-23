@@ -1,36 +1,50 @@
-"""SiliconFlow API client: chat / embedding / rerank (async)."""
+"""LLM 客户端：基于 OpenAI SDK 接入任意 OpenAI-compatible 供应商。
+
+默认 BASE_URL=https://api.siliconflow.cn/v1（SiliconFlow），更换供应商只需
+修改 .env 中的 LLM_BASE_URL / LLM_API_KEY（或兼容的 SILICONFLOW_*）。
+chat / embeddings 走 OpenAI SDK；rerank 为供应商扩展接口，SDK 无对应
+能力，保留轻量 HTTP 调用。
+"""
 from typing import Any
 
 import httpx
+from openai import AsyncOpenAI
 
 from app.core.config import get_settings
 
 settings = get_settings()
 
 
-class SiliconFlowClient:
+class LLMClient:
     def __init__(self) -> None:
-        self.base_url = settings.siliconflow_base_url
-        self.api_key = settings.siliconflow_api_key
-        self.timeout = httpx.Timeout(120.0, connect=10.0)
-        self._client: httpx.AsyncClient | None = None
+        self.base_url = settings.llm_base_url or settings.siliconflow_base_url
+        self.api_key = settings.llm_api_key or settings.siliconflow_api_key
+        self.timeout = 120.0
+        self._openai = AsyncOpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            timeout=self.timeout,
+            max_retries=1,
+        )
+        self._http: httpx.AsyncClient | None = None
 
     @property
-    def client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
+    def http(self) -> httpx.AsyncClient:
+        """供 rerank 等供应商扩展接口使用。"""
+        if self._http is None:
+            self._http = httpx.AsyncClient(
                 base_url=self.base_url,
                 headers={"Authorization": f"Bearer {self.api_key}"},
-                timeout=self.timeout,
+                timeout=httpx.Timeout(120.0, connect=10.0),
             )
-        return self._client
+        return self._http
 
     async def aclose(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
+        if self._http:
+            await self._http.aclose()
+            self._http = None
 
-    # ---------- chat ----------
+    # ---------- chat（OpenAI SDK） ----------
     async def chat(
         self,
         messages: list[dict],
@@ -40,63 +54,40 @@ class SiliconFlowClient:
         **kwargs: Any,
     ) -> str:
         model = model or settings.llm_review_model
-        resp = await self.client.post(
-            "/chat/completions",
-            json={
-                "model": model,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "stream": False,
-                **kwargs,
-            },
+        resp = await self._openai.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs,
         )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        return resp.choices[0].message.content or ""
 
     async def chat_stream(self, messages: list[dict], model: str | None = None, **kwargs: Any):
-        """返回增量文本的异步生成器。"""
+        """OpenAI SDK 流式：返回增量文本的异步生成器。"""
         model = model or settings.llm_chat_model
-        async with self.client.stream(
-            "POST",
-            "/chat/completions",
-            json={
-                "model": model,
-                "messages": messages,
-                "stream": True,
-                **kwargs,
-            },
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if not line.startswith("data:"):
-                    continue
-                payload = line[5:].strip()
-                if payload == "[DONE]":
-                    break
-                import json
-
-                obj = json.loads(payload)
-                delta = obj["choices"][0].get("delta", {})
-                content = delta.get("content")
-                if content:
-                    yield content
-
-    # ---------- embedding ----------
-    async def embed(self, texts: list[str], model: str | None = None) -> list[list[float]]:
-        """BAAI/bge-m3 dense embedding（SiliconFlow /embeddings 接口）。"""
-        model = model or settings.embedding_model
-        resp = await self.client.post(
-            "/embeddings",
-            json={"model": model, "input": texts, "encoding_format": "float"},
+        stream = await self._openai.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+            **kwargs,
         )
-        resp.raise_for_status()
-        data = resp.json()
-        ordered = sorted(data["data"], key=lambda x: x["index"])
-        return [item["embedding"] for item in ordered]
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
-    # ---------- rerank ----------
+    # ---------- embedding（OpenAI SDK） ----------
+    async def embed(self, texts: list[str], model: str | None = None) -> list[list[float]]:
+        model = model or settings.embedding_model
+        resp = await self._openai.embeddings.create(
+            model=model,
+            input=texts,
+            encoding_format="float",
+        )
+        ordered = sorted(resp.data, key=lambda x: x.index)
+        return [item.embedding for item in ordered]
+
+    # ---------- rerank（供应商扩展接口） ----------
     async def rerank(
         self,
         query: str,
@@ -104,9 +95,8 @@ class SiliconFlowClient:
         model: str | None = None,
         top_n: int = 5,
     ) -> list[dict]:
-        """bge-reranker-v2-m3 精排，返回 [{index, score}] 按分降序。"""
         model = model or settings.rerank_model
-        resp = await self.client.post(
+        resp = await self.http.post(
             "/rerank",
             json={"model": model, "query": query, "documents": documents, "top_n": top_n},
         )
@@ -114,11 +104,15 @@ class SiliconFlowClient:
         return resp.json().get("results", [])
 
 
-_sf_client: SiliconFlowClient | None = None
+_llm_client: LLMClient | None = None
 
 
-def get_sf_client() -> SiliconFlowClient:
-    global _sf_client
-    if _sf_client is None:
-        _sf_client = SiliconFlowClient()
-    return _sf_client
+def get_llm_client() -> LLMClient:
+    global _llm_client
+    if _llm_client is None:
+        _llm_client = LLMClient()
+    return _llm_client
+
+
+# 兼容旧调用方（agent 节点 / rag / 服务层）
+get_sf_client = get_llm_client

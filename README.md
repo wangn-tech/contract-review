@@ -34,7 +34,7 @@
 |---|---|
 | Agent 编排 | LangGraph（状态机 · 条件路由 · 节点并行）、LangChain Core/OpenAI、提示词模板独立 .md |
 | RAG | Qdrant + BAAI/bge-m3（稠密）、BM25 + jieba（稀疏）、RRF 融合、bge-reranker-v2-m3 精排 |
-| LLM | SiliconFlow：DeepSeek-V3.2（审阅）、DeepSeek-V4-Flash（意图/聊天）、bge 系列（embedding/rerank） |
+| LLM | OpenAI SDK 接入任意 OpenAI-compatible 供应商（默认 SiliconFlow）：DeepSeek-V3.2（审阅）、DeepSeek-V4-Flash（意图/聊天）、bge 系列（embedding/rerank） |
 | 后端 | FastAPI · SQLAlchemy 2 · Pydantic v2 · JWT(PBKDF2) · SSE · Langfuse |
 | 前端 | Vue3 + TypeScript + Vite + Element Plus + Pinia + ECharts |
 | 工程化 | Docker Compose（六服务）· GitHub Actions（5 Job）· Locust · uv |
@@ -52,6 +52,9 @@ make help     # 查看全部命令（含本地开发/测评/压测）
 # 1. 配置密钥（SiliconFlow key 必填；.env 统一放项目根目录）
 cp backend/.env.example .env
 vim .env                        # SILICONFLOW_API_KEY=sk-xxx
+# 更换模型供应商：只需设置 LLM_BASE_URL 与 LLM_API_KEY（OpenAI SDK 接入，
+# 兼容任何 OpenAI-compatible 服务，如 SiliconFlow/OpenAI/DeepSeek 官方等）；
+# 未设置时回退到 SILICONFLOW_API_KEY / SILICONFLOW_BASE_URL
 
 # 2. 一键起全套（mysql/redis/qdrant/langfuse/backend/frontend）
 docker compose -f deploy/docker-compose.yml up -d --build

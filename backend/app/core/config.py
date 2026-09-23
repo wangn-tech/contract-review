@@ -38,7 +38,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
-    # siliconflow
+    # LLM 供应商（OpenAI SDK 接入；换供应商只需改 LLM_BASE_URL / LLM_API_KEY）
+    llm_base_url: str = "https://api.siliconflow.cn/v1"
+    llm_api_key: str = ""
+    # siliconflow（兼容旧变量名，LLM 变量为空时回退）
     siliconflow_api_key: str = ""
     siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
     llm_review_model: str = "deepseek-ai/DeepSeek-V3.2"

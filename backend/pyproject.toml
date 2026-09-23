@@ -32,6 +32,7 @@ dependencies = [
     "lxml>=5.2",
     "rank-bm25>=0.2",
     "jieba>=0.42",
+    "openai>=1.60",
 ]
 
 [project.optional-dependencies]
