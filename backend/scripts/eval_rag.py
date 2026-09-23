@@ -35,7 +35,9 @@ async def main() -> None:
         detail.append(
             {"id": case.id, "question": case.question, "retrieved": retrieved[:5]}
         )
-    metrics = evaluate_retrieval(cases, k=5)
+    # 匹配口径：golden set 的 relevant_docs 为文档标题关键词，按子串判定；
+    # 内部做文档级去重，避免同一文档多个 chunk 重复命中虚高指标。
+    metrics = evaluate_retrieval(cases, k=5, matcher=lambda rel, d: any(kw in d for kw in rel))
     for k, v in metrics.items():
         print(f"  {k}: {v:.4f}")
 
