@@ -27,6 +27,13 @@
 | Context Precision（无参考） | **0.7333** | 检索上下文精炼度 |
 | Context Recall | 0.4333 | 上下文覆盖参考答案程度 |
 
+## 2.5 依赖冲突与解法（2026-09 实测）
+
+- **ragas 0.4.x / 0.2.x 均 import `langchain_community.chat_models.vertexai`**，而 langchain-community 0.4.2 已移除该模块 → ModuleNotFoundError。
+- 解法：eval 环境锁 `ragas>=0.2,<0.3` + `langchain-community<0.4`（0.3.31 保留 vertexai，且与 langchain-core 1.6 / langchain 1.4 共存）。
+- 实测：2 条样本 8 个评估 job 全通过（faithfulness/answer_relevancy/context_precision/context_recall 全部出值）。
+- **主环境（无 --extra eval）不含 langchain-community**：langgraph 1.2 只依赖 langchain-core，项目代码不 import community。
+
 ## 3. 测评过程中修复的问题
 
 1. **rerank 字段兼容**：SiliconFlow 返回 `relevance_score` 而非 `score`，`rerank.py` 已兼容两种字段名。

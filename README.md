@@ -27,6 +27,9 @@
 | 看板统计 | 风险分布、维度命中率、审阅耗时趋势（ECharts） |
 | 知识库 | 深大采购制度 + 法规 + 合同模板三层语料，自动 ingest |
 | 管理配置 | 合同类型 / 专家提示词 / 模型参数在线配置 |
+| 依赖策略 | 仅用官方独立包：langgraph / langchain-core / langchain-openai + 原生 openai SDK；**主环境不含 langchain-community** |
+| RAGAS 评估 | `uv sync --extra eval`（ragas 0.2.x + langchain-community<0.4）；ragas 需要 community 的 vertexai 模块，community 0.4 已移除，故 eval 环境锁 <0.4 |
+
 
 ## 技术栈
 
