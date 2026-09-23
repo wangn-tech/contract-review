@@ -29,33 +29,33 @@
 
 ```mermaid
 flowchart LR
-    subgraph FE[前端 Vue3+TS · Nginx]
-        UI[页面层: 登录/看板/文件/审阅/比对/问答/配置]
-        API[api/: axios + postSSE]
+    subgraph FE["展示层 · 前端 Vue3 + TS · Nginx"]
+        UI["页面：登录 / 看板 / 文件 / 审阅 / 比对 / 问答 / 配置"]
+        API["api 层：axios + postSSE"]
     end
-    subgraph BE[后端 FastAPI]
-        AUTH[鉴权 JWT+CAS预留]
-        CON[合同上传/解析]
-        REV[审阅 Agent 编排]
-        CMP[合同比对]
-        CHAT[合同问答]
-        DASH[看板统计]
-        ADM[类型/Prompt/模型配置]
+    subgraph BE["应用层 · FastAPI"]
+        AUTH["鉴权 JWT · CAS 预留"]
+        CON["合同上传 / 解析"]
+        REV["审阅 Agent 编排"]
+        CMP["合同比对"]
+        CHAT["合同问答"]
+        DASH["看板统计"]
+        ADM["类型 / Prompt / 模型配置"]
     end
-    subgraph INFRA[基础设施]
-        MYSQL[(MySQL 8)]
-        REDIS[(Redis 7)]
-        QDRANT[(Qdrant)]
-        LF[Langfuse 自托管]
-        SF[SiliconFlow API: LLM/Embedding/Rerank]
+    subgraph INFRA["基础设施层"]
+        MYSQL[("MySQL 8")]
+        REDIS[("Redis 7")]
+        QDRANT[("Qdrant")]
+        LF["Langfuse 自托管"]
+        SF["SiliconFlow API<br/>LLM / Embedding / Rerank"]
     end
-    FE -- "/api REST + SSE" --> BE
+    FE -- "HTTP + SSE" --> BE
     BE --> MYSQL
     BE --> REDIS
     BE --> QDRANT
     BE --> LF
     BE --> SF
-    QDRANT -.ingest.-> BE
+    QDRANT -. "向量 ingest" .-> BE
 ```
 
 ---
@@ -151,34 +151,34 @@ backend/
 
 ```mermaid
 flowchart TD
-    START([审阅任务]) --> INTENT[Intent Classifier<br/>LLM结构化分类<br/>review/compare/chat/admin]
-    INTENT -- "分类失败/低置信" --> FALLBACK[规则引擎降级<br/>关键词正则 → 默认chat]
-    FALLBACK --> ROUTE2[按意图路由]
+    START(["审阅任务"]) --> INTENT["Intent Classifier<br/>LLM 结构化分类<br/>review · compare · chat · admin"]
+    INTENT -- "分类失败 / 低置信" --> FALLBACK["规则引擎降级<br/>关键词正则 → 默认 chat"]
+    FALLBACK --> ROUTE2["按意图路由"]
     INTENT --> ROUTE2
-    ROUTE2 -->|review| SLICE[条款分块<br/>按条/章切分 + 序号]
-    SLICE --> ROUTER[Router<br/>条款→风险维度专家映射]
-    ROUTER -->|map 并行| SP1[Specialist 主体合规]
-    ROUTER -->|map 并行| SP2[Specialist 财务付款]
-    ROUTER -->|map 并行| SP3[Specialist 知识产权]
-    ROUTER -->|map 并行| SP4[Specialist 违约责任]
-    ROUTER -->|map 并行| SP5[Specialist 验收质保]
-    ROUTER -->|map 并行| SP6[Specialist 争议解决]
-    SP1 --> RAG1[RAG检索工具<br/>ReAct: 检索法规/制度/模板]
-    SP2 --> RAG2[RAG检索工具]
-    SP3 --> RAG3[RAG检索工具]
-    SP4 --> RAG4[RAG检索工具]
-    SP5 --> RAG5[RAG检索工具]
-    SP6 --> RAG6[RAG检索工具]
-    RAG1 --> OUT1[风险点 JSON]
-    RAG2 --> OUT2[风险点 JSON]
-    RAG3 --> OUT3[风险点 JSON]
-    RAG4 --> OUT4[风险点 JSON]
-    RAG5 --> OUT5[风险点 JSON]
-    RAG6 --> OUT6[风险点 JSON]
-    OUT1 & OUT2 & OUT3 & OUT4 & OUT5 & OUT6 -->|reduce 按原顺序归并| GATE[Gate 质检<br/>格式/缺失/幻觉检查<br/>失败→重试1次]
-    GATE --> ARB[Arbitration<br/>去重/冲突消解/风险分级/摘要]
-    ARB --> SSE[SSE 流式输出<br/>message→end]
-    SSE --> STOP([结束])
+    ROUTE2 -- "review" --> SLICE["条款分块<br/>按条 / 章切分 + 序号"]
+    SLICE --> ROUTER["Router<br/>条款 → 风险维度专家映射"]
+    ROUTER -- "map 并行" --> SP1["Specialist 主体合规"]
+    ROUTER -- "map 并行" --> SP2["Specialist 财务付款"]
+    ROUTER -- "map 并行" --> SP3["Specialist 知识产权"]
+    ROUTER -- "map 并行" --> SP4["Specialist 违约责任"]
+    ROUTER -- "map 并行" --> SP5["Specialist 验收质保"]
+    ROUTER -- "map 并行" --> SP6["Specialist 争议解决"]
+    SP1 --> RAG1["RAG 检索工具<br/>ReAct：检索法规 / 制度 / 模板"]
+    SP2 --> RAG2["RAG 检索工具"]
+    SP3 --> RAG3["RAG 检索工具"]
+    SP4 --> RAG4["RAG 检索工具"]
+    SP5 --> RAG5["RAG 检索工具"]
+    SP6 --> RAG6["RAG 检索工具"]
+    RAG1 --> OUT1["风险点 JSON"]
+    RAG2 --> OUT2["风险点 JSON"]
+    RAG3 --> OUT3["风险点 JSON"]
+    RAG4 --> OUT4["风险点 JSON"]
+    RAG5 --> OUT5["风险点 JSON"]
+    RAG6 --> OUT6["风险点 JSON"]
+    OUT1 & OUT2 & OUT3 & OUT4 & OUT5 & OUT6 -- "reduce 按原顺序归并" --> GATE["Gate 质检<br/>格式 · 缺失 · 幻觉检查<br/>失败 → 重试 1 次"]
+    GATE --> ARB["Arbitration<br/>去重 · 冲突消解 · 风险分级 · 摘要"]
+    ARB --> SSE["SSE 流式输出<br/>message → end"]
+    SSE --> STOP(["结束"])
 ```
 
 - **并行控制**：`asyncio.Semaphore`（默认 20）限制 Specialist 并发；按原分块顺序归并输出（避免乱序）
@@ -196,22 +196,25 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Q[条款文本/风险查询] --> QT[Query Transform<br/>multi-query 改写 2-3 变体]
-    QT --> D[Dense 检索<br/>bge-m3 稠密向量 · Qdrant]
-    QT --> S[Sparse 检索<br/>bge-m3 学习型稀疏 · Qdrant]
-    QT --> M[元数据过滤<br/>知识库分层: 法规/制度/模板]
-    D --> F[RRF 融合 k=60]
+    Q["条款文本或风险查询"]
+    Q --> QT["Query Transform<br/>意图相关查询改写"]
+    QT --> D["Dense 检索<br/>bge-m3 稠密向量 · Qdrant"]
+    QT --> S["Sparse 检索<br/>本地 BM25 · jieba 分词"]
+    QT --> M["元数据过滤<br/>知识库分层 · 风险维度映射"]
+    D --> F["RRF 融合 k=60"]
     S --> F
     M --> F
-    F --> R[Rerank<br/>bge-reranker-v2-m3 → Top-5]
-    R --> C[Context Builder<br/>分数排序 + 引用标注(来源/条款)]
-    C --> P[注入 Specialist Prompt]
+    F --> R["Rerank<br/>bge-reranker-v2-m3 · Top-5"]
+    R --> C["Context Builder<br/>来源与条款引用标注"]
+    C --> P["注入 Specialist 提示词"]
 ```
 
-- **Embedding**：SiliconFlow `BAAI/bge-m3`（稠密 1024 维 + 学习型稀疏，一次前向双表征）
-- **Rerank**：`BAAI/bge-reranker-v2-m3`
-- **Qdrant**：collection 按知识库分层建（`regulations` / `institution` / `templates`），payload 带 `{source, doc_type, section, title}`；dense + sparse 双向量
-- **Chunk**：按标题层级切分 + 200 字重叠 + 元数据；8192 token 内长文支持
+- **Embedding**：SiliconFlow `BAAI/bge-m3`（实测返回 1024 维稠密向量；**SiliconFlow 接口不支持 sparse 输出**，故 sparse 路径落地为本地 BM25，与 Qdrant 官方混合检索方案一致）
+- **Sparse**：`rank-bm25`（BM25Okapi）+ `jieba` 中文分词，知识库规模下毫秒级召回，索引持久化为 pickle
+- **Rerank**：`BAAI/bge-reranker-v2-m3`（cross-encoder），对 RRF 融合结果精排取 Top-5
+- **Qdrant**：collection 按知识库分层建（`kb_regulations` / `kb_institution` / `kb_templates`），payload 带 `{source, doc_type, section}`；元数据建 KEYWORD 索引支持过滤
+- **Chunk**：按标题层级切分 + overlap（默认 50 字）+ 元数据，超长段二次切分
+- **风险维度 → 知识层映射**：`app/rag/service.py` 的 `DIM_TO_COLLECTION` / `DIM_TO_DOC_TYPE`（如"财务与付款"→ 制度层，"违约责任与解除"→ 法规层）
 
 ### 3.7 知识库语料（来源标注）
 
@@ -223,7 +226,157 @@ flowchart LR
 
 ### 3.8 数据库核心表
 
-`users` / `contract_files` / `sessions`(type: review|compare|chat) / `messages` / `review_tasks` / `review_results`(含 is_accepted) / `comparison_tasks` / `contract_types` / `prompts`(level: system|org|override) / `model_configs` / `dashboard_stats`(可选物化)
+实体关系（E-R）总览（实现对应 `backend/app/models/`，共 10 张表）：
+
+```mermaid
+erDiagram
+    users ||--o{ sessions : "拥有"
+    users ||--o{ contract_files : "上传"
+    users ||--o{ review_tasks : "发起"
+    users ||--o{ comparison_tasks : "发起"
+    contract_types ||--o{ contract_files : "分类"
+    sessions ||--o{ messages : "包含"
+    sessions ||--o{ review_tasks : "关联"
+    sessions ||--o{ comparison_tasks : "关联"
+    contract_files ||--o{ review_tasks : "被审阅"
+    contract_files ||--o{ comparison_tasks : "参与比对"
+    review_tasks ||--o{ review_results : "产出"
+    prompts ||--o{ prompts : "继承 base_prompt_id"
+
+    users {
+        int id PK
+        varchar username UK
+        varchar password_hash
+        bool is_active
+        varchar role "user|admin"
+        datetime created_at
+    }
+    contract_types {
+        int id PK
+        varchar name UK
+        varchar description
+        int is_active "1|0"
+        datetime created_at
+    }
+    contract_files {
+        int id PK
+        int user_id FK
+        varchar title
+        varchar file_type "pdf|docx|doc"
+        varchar file_path
+        varchar content_path
+        varchar parse_status "parsed|uploaded"
+        varchar party_a
+        varchar party_b
+        float amount
+        int contract_type_id FK
+        int review_position "0甲方|1乙方"
+        int is_accepted "1|0"
+        datetime created_at
+    }
+    sessions {
+        int id PK
+        int user_id FK
+        varchar title
+        varchar session_type "review|compare|chat"
+        int file_id FK
+        datetime created_at
+    }
+    messages {
+        int id PK
+        int session_id FK
+        varchar role "user|assistant"
+        text content
+        int parent_id
+        int message_index
+        datetime created_at
+    }
+    review_tasks {
+        int id PK
+        int session_id FK
+        int file_id FK
+        int user_id FK
+        varchar stance "甲方|乙方"
+        varchar intensity "严格|标准|宽松"
+        text description
+        varchar contract_type
+        varchar status "pending|processing|completed|failed"
+        datetime created_at
+        datetime completed_at
+    }
+    review_results {
+        int id PK
+        int task_id FK
+        int session_id FK
+        int index "条款顺序"
+        text original_content
+        text risk_analysis
+        varchar risk_level "高|中|低"
+        text suggested_content
+        varchar risk_dim
+        int is_accepted "1|0"
+        datetime created_at
+    }
+    comparison_tasks {
+        int id PK
+        int session_id FK
+        int user_id FK
+        int standard_file_id FK
+        int comparison_file_id FK
+        text diff_summary "JSON"
+        text diff_result "JSON"
+        datetime created_at
+    }
+    prompts {
+        int id PK
+        varchar level "system|org|override"
+        int contract_type_id FK
+        int base_prompt_id FK "继承链"
+        varchar prompt_name
+        text prompt_content
+        int is_active "1|0"
+        datetime created_at
+        datetime update_time
+    }
+    model_configs {
+        int id PK
+        varchar model_name
+        varchar model_type "review|chat|intent|embedding|rerank"
+        varchar provider "siliconflow"
+        varchar api_endpoint
+        varchar api_key "引用环境变量"
+        float temperature
+        float top_p
+        int max_tokens
+        int is_default
+        varchar status "active|inactive"
+        datetime created_at
+        datetime update_time
+    }
+```
+
+#### 设计要点
+
+| 表 | 说明 | 关键索引/约束 |
+|---|---|---|
+| `users` | 用户（账号密码 + JWT；CAS 预留接口） | `username` 唯一；密码 PBKDF2 存储 |
+| `contract_types` | 合同类型字典（服务/货物/基建/科研仪器/租赁） | `name` 唯一 |
+| `contract_files` | 上传合同：原始文件 + 解析文本双路径 | `user_id` 索引；`contract_type_id` 外键 |
+| `sessions` | 会话（review/compare/chat 三型），审阅/比对/问答统一载体 | `user_id`、`file_id` 索引 |
+| `messages` | 聊天消息（多轮） | `session_id` 索引；`parent_id` 支持回复结构 |
+| `review_tasks` | 审阅任务（立场/尺度/状态机） | `session_id` 索引；`status` 枚举 |
+| `review_results` | 审阅产出单条风险点（Agent 结果落库，SSE 流式输出） | `task_id` 索引；`risk_level` 枚举 |
+| `comparison_tasks` | 比对任务（双文件 + JSON 差异结果） | `session_id` 索引 |
+| `prompts` | 提示词三层管理（system/org/override）+ 继承链 | `level` 索引；`base_prompt_id` 自引用 |
+| `model_configs` | 模型配置（按用途区分 review/chat/embedding/rerank） | `model_type` 索引；API key 不落明文 |
+
+#### 关键设计决策
+
+- **会话统一模型**：审阅/比对/问答共用 `sessions`，通过 `session_type` 区分，前端与任务表均以 `session_id` 关联，避免多套会话体系；
+- **SSE 落库一体**：`review_results` 边生成边写库边推送，页面刷新后可恢复历史风险点；
+- **文件双路径**：`file_path`（原始上传）+ `content_path`（解析文本），审阅/聊天直接从解析文本读取，避免重复解析；
+- **提示词可治理**：`prompts.level` 支持 system（系统默认）→ org（组织覆盖）→ override（个性化覆盖）三级，`base_prompt_id` 自引用实现继承；
+- **兼容 SQLite/MySQL**：本地测试用 SQLite（`DATABASE_URL=sqlite://`），生产 MySQL 8（utf8mb4），ORM 层无方言依赖（趋势统计在 Python 端聚合）。
 
 ---
 
@@ -240,14 +393,14 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph DOCKER[Docker Compose 网络]
-        NGINX[Nginx<br/>:80 前端静态 + 反代/api]
-        FE[frontend 镜像<br/>build 产物静态托管]
-        BE[backend 镜像<br/>uvicorn :8080]
-        MYSQL[(MySQL 8<br/>:3306)]
-        REDIS[(Redis 7<br/>:6379)]
-        QD[(Qdrant<br/>:6333)]
-        LF[Langfuse<br/>:3000 自托管]
+    subgraph DOCKER["Docker Compose 网络"]
+        NGINX["Nginx<br/>:80 · 前端静态 + 反代 /api"]
+        FE["frontend 镜像<br/>build 产物静态托管"]
+        BE["backend 镜像<br/>uvicorn :8080"]
+        MYSQL[("MySQL 8 · :3306")]
+        REDIS[("Redis 7 · :6379")]
+        QD[("Qdrant · :6333")]
+        LF["Langfuse · :3000 自托管"]
     end
     NGINX --> FE
     NGINX --> BE
@@ -264,12 +417,12 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    PUSH[push/PR → main] --> LINT[Job1 lint<br/>ruff check + format]
-    PUSH --> TEST[Job2 test<br/>pytest 单元+API冒烟]
-    PUSH --> FE[Job3 frontend<br/>npm ci + vue-tsc + build]
-    LINT & TEST & FE --> IMG[Job4 docker<br/>build & push GHCR<br/>backend/frontend]
-    IMG --> DEPLOY[Job5 deploy<br/>SSH 部署 Docker Compose<br/>仅 main + 手动]
-    MAN[workflow_dispatch<br/>rag-eval / benchmark] --> RPT[生成测评/压测报告<br/>docs/rag-eval.md · docs/benchmark.md]
+    PUSH["push / PR → main"] --> LINT["Job1 lint<br/>ruff check"]
+    PUSH --> TEST["Job2 test<br/>pytest 单元 + API 冒烟"]
+    PUSH --> FE["Job3 frontend<br/>npm ci + vue-tsc + build"]
+    LINT & TEST & FE --> IMG["Job4 docker<br/>build 镜像<br/>backend / frontend"]
+    IMG --> DEPLOY["Job5 deploy<br/>SSH 部署 Docker Compose<br/>仅 main + 手动"]
+    MAN["workflow_dispatch<br/>rag-eval · benchmark"] --> RPT["生成测评 / 压测报告<br/>docs/rag-eval.md · docs/benchmark.md"]
 ```
 
 ---

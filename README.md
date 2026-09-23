@@ -4,19 +4,70 @@
 
 ## 架构
 
-```
-┌─────────────┐      ┌────────────────────────────────────────────┐
-│ Vue3 + TS   │      │                FastAPI 后端                 │
-│ (nginx)     │ ───▶ │ ┌────────────────────────────────────────┐ │
-└─────────────┘      │ │ LangGraph Agent（意图→Router→6专家→QC）│ │
-                     │ │  专家 ReAct 循环调用 RAG 检索工具        │ │
-                     │ └──────────────────┬─────────────────────┘ │
-                     │ ┌──────────────────▼─────────────────────┐ │
-                     │ │ Hybrid RAG：dense(bge-m3/Qdrant)       │ │
-                     │ │           + sparse(BM25) → RRF → rerank│ │
-                     │ └────────────────────────────────────────┘ │
-                     │ MySQL · Redis · Qdrant · Langfuse          │
-                     └────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph FE["展示层 · 前端 (Vue3 + TypeScript)"]
+        UI["Nginx :80<br/>静态资源 + /api 反向代理"]
+        PAGES["页面：登录 / 看板 / 合同 / 审阅 / 比对 / 问答 / 配置"]
+    end
+
+    subgraph BE["应用层 · FastAPI 后端 (:8080)"]
+        API["REST API 路由<br/>auth · contracts · sessions · reviews · chats · admin"]
+        SSE["SSE 流式<br/>审阅风险点 · 聊天回复"]
+        AUTH["JWT 鉴权<br/>PBKDF2 · CAS 预留"]
+        DOC["文档解析<br/>pdf/docx → 文本"]
+    end
+
+    subgraph AGENT["Agent 编排层 · LangGraph"]
+        INTENT["意图识别<br/>LLM + 规则降级"]
+        ROUTER["条款分发 Router"]
+        S1["专家1 主体合规"]
+        S2["专家2 财务付款"]
+        S3["专家3 知产保密"]
+        S4["专家4 违约解除"]
+        S5["专家5 验收质保"]
+        S6["专家6 争议管辖"]
+        GATE["Gate 质检"]
+        ARB["Arbitration 仲裁"]
+    end
+
+    subgraph RAG["RAG 检索层"]
+        DENSE["Dense<br/>bge-m3 · Qdrant"]
+        SPARSE["Sparse<br/>BM25 · jieba"]
+        RRF["RRF 融合 k=60"]
+        RERANK["Rerank<br/>bge-reranker-v2-m3"]
+    end
+
+    subgraph INFRA["基础设施层"]
+        MYSQL[(MySQL 8)]
+        REDIS[(Redis 7)]
+        QD[(Qdrant 向量库)]
+        LF["Langfuse 可观测"]
+    end
+
+    SILICON["SiliconFlow<br/>DeepSeek · bge 系列"]
+
+    UI -->|"HTTP + SSE"| API
+    PAGES --> UI
+    API --> AUTH
+    API --> DOC
+    API --> SSE
+    SSE -->|"审阅任务"| INTENT
+    INTENT --> ROUTER
+    ROUTER --> S1 & S2 & S3 & S4 & S5 & S6
+    S1 & S2 & S3 & S4 & S5 & S6 -->|"ReAct 循环调用检索"| RAG
+    S1 & S2 & S3 & S4 & S5 & S6 --> GATE
+    GATE --> ARB
+    ARB -->|"风险点结果"| SSE
+    DENSE --> RRF
+    SPARSE --> RRF
+    RRF --> RERANK
+    RERANK -->|"Top-5 证据"| S1 & S2 & S3 & S4 & S5 & S6
+    DENSE --> QD
+    API --> MYSQL & REDIS
+    RERANK -.->|"embedding/rerank API"| SILICON
+    AGENT -.->|"LLM 调用"| SILICON
+    API -.->|"trace"| LF
 ```
 
 - **Agent 编排（LangGraph）**：意图识别（LLM + 规则降级）→ 条款分发 → 6 个风险维度专家并行审阅（ReAct + RAG 工具）→ Gate 质检 → 仲裁汇总；提示词模板独立管理。
@@ -25,6 +76,8 @@
 - **可观测与压测**：Langfuse 自托管 trace 关联；Locust 全链路压测（SSE TTFT/完整时长/成功率）。
 
 ## 快速开始
+
+> 完整启动/测试指南见 [`docs/QUICKSTART.md`](docs/QUICKSTART.md)。
 
 ```bash
 # 1. 配置密钥（SiliconFlow key 必填）
