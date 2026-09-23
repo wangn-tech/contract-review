@@ -5,6 +5,7 @@
 chat / embeddings 走 OpenAI SDK；rerank 为供应商扩展接口，SDK 无对应
 能力，保留轻量 HTTP 调用。
 """
+import asyncio
 from typing import Any
 
 import httpx
@@ -47,6 +48,21 @@ class LLMClient:
             max_retries=1,
         )
         self._http: httpx.AsyncClient | None = None
+        # 应用层并发限流：所有 LLM 调用共享信号量，防止突发请求打满供应商推理队列
+        self._sem = asyncio.Semaphore(settings.max_concurrent_llm)
+        self._prompt_cache = settings.llm_prompt_cache
+
+    def _apply_cache(self, kwargs: dict) -> dict:
+        """SiliconFlow prompt cache：命中后显著降低 prefill 耗时（TTFT 优化）。
+
+        cache_prompt 是供应商扩展参数，OpenAI SDK 经 extra_body 透传；
+        供应商不支持时忽略该字段即可。embedding 不走 prompt cache。
+        """
+        if self._prompt_cache:
+            extra = dict(kwargs.get("extra_body") or {})
+            extra.setdefault("cache_prompt", True)
+            kwargs["extra_body"] = extra
+        return kwargs
 
     @property
     def http(self) -> httpx.AsyncClient:
@@ -74,13 +90,14 @@ class LLMClient:
         **kwargs: Any,
     ) -> str:
         model = model or settings.llm_review_model
-        resp = await self._openai.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
+        async with self._sem:
+            resp = await self._openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **self._apply_cache(kwargs),
+            )
         return resp.choices[0].message.content or ""
 
     async def chat_with_tools(
@@ -98,15 +115,16 @@ class LLMClient:
         调用方负责工具循环（见 app/agent/tools/executor.py）。
         """
         model = model or settings.llm_review_model
-        resp = await self._openai.chat.completions.create(
-            model=model,
-            messages=messages,
-            tools=tools,
-            tool_choice=tool_choice,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
+        async with self._sem:
+            resp = await self._openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **self._apply_cache(kwargs),
+            )
         return resp.choices[0].message
 
     async def chat_structured(
@@ -125,17 +143,18 @@ class LLMClient:
         """
         model = model or settings.llm_intent_model
         try:
-            resp = await self._openai.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {"name": "structured_output", "strict": True, "schema": json_schema},
-                },
-                **kwargs,
-            )
+            async with self._sem:
+                resp = await self._openai.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {"name": "structured_output", "strict": True, "schema": json_schema},
+                    },
+                    **self._apply_cache(kwargs),
+                )
             content = resp.choices[0].message.content or ""
             parsed = _extract_json(content)
             if parsed is not None:
@@ -164,12 +183,13 @@ class LLMClient:
         full: list[str] = []
         usage: dict = {}
         kwargs.setdefault("stream_options", {"include_usage": True})
-        stream = await self._openai.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=True,
-            **kwargs,
-        )
+        async with self._sem:
+            stream = await self._openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                stream=True,
+                **self._apply_cache(kwargs),
+            )
         async for chunk in stream:
             if chunk.usage:
                 usage = {
@@ -188,12 +208,13 @@ class LLMClient:
         （无 content），由调用方统计；生成器本身只产出增量文本。
         """
         model = model or settings.llm_chat_model
-        stream = await self._openai.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=True,
-            **kwargs,
-        )
+        async with self._sem:
+            stream = await self._openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                stream=True,
+                **self._apply_cache(kwargs),
+            )
         async for chunk in stream:
             if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
@@ -205,12 +226,13 @@ class LLMClient:
         """
         model = model or settings.llm_chat_model
         kwargs.setdefault("stream_options", {"include_usage": True})
-        stream = await self._openai.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=True,
-            **kwargs,
-        )
+        async with self._sem:
+            stream = await self._openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                stream=True,
+                **self._apply_cache(kwargs),
+            )
         yield ("start", None)
         async for chunk in stream:
             # 独立判断：部分供应商 usage 与 content 可能同 chunk，用 if 而非 elif 避免吞 delta
@@ -229,11 +251,12 @@ class LLMClient:
     # ---------- embedding（OpenAI SDK） ----------
     async def embed(self, texts: list[str], model: str | None = None) -> list[list[float]]:
         model = model or settings.embedding_model
-        resp = await self._openai.embeddings.create(
-            model=model,
-            input=texts,
-            encoding_format="float",
-        )
+        async with self._sem:
+            resp = await self._openai.embeddings.create(
+                model=model,
+                input=texts,
+                encoding_format="float",
+            )
         ordered = sorted(resp.data, key=lambda x: x.index)
         return [item.embedding for item in ordered]
 
@@ -246,10 +269,11 @@ class LLMClient:
         top_n: int = 5,
     ) -> list[dict]:
         model = model or settings.rerank_model
-        resp = await self.http.post(
-            "/rerank",
-            json={"model": model, "query": query, "documents": documents, "top_n": top_n},
-        )
+        async with self._sem:
+            resp = await self.http.post(
+                "/rerank",
+                json={"model": model, "query": query, "documents": documents, "top_n": top_n},
+            )
         resp.raise_for_status()
         return resp.json().get("results", [])
 

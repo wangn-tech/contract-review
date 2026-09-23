@@ -98,7 +98,8 @@ class Settings(BaseSettings):
     # 流式 / 首 Token 工程
     metrics_enabled: bool = True
     metrics_window_size: int = 200      # 滑动窗口样本数
-    llm_prompt_cache: bool = True
+    llm_prompt_cache: bool = True       # SiliconFlow cache_prompt（命中后显著降低 TTFT）
+    max_concurrent_llm: int = 4         # LLM 并发上限（应用层信号量，防突发打满供应商）
     chat_stream_timeout: float = 30.0   # 聊天流式超时（秒）
     review_stream_timeout: float = 120.0  # 审阅流式超时（秒）
 
