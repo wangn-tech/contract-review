@@ -4,25 +4,25 @@ version = "0.1.0"
 description = "AI contract review agent system for university procurement (FastAPI + LangGraph + Hybrid RAG)"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
-    "pydantic>=2.7",
-    "pydantic-settings>=2.3",
-    "sqlalchemy>=2.0",
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.53",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.15",
+    "sqlalchemy>=2.0.54",
     "pymysql>=1.1",
-    "cryptography>=42.0",
-    "redis>=5.0",
-    "PyJWT>=2.8",
-    "python-multipart>=0.0.9",
-    "httpx>=0.27",
-    "sse-starlette>=2.1",
-    "langgraph>=0.2",
-    "langchain-core>=0.3",
-    "langchain-openai>=0.2",
-    "qdrant-client>=1.9",
-    "pypdf>=4.2",
+    "cryptography>=44.0",
+    "redis>=8.1",
+    "PyJWT>=2.10",
+    "python-multipart>=0.0.20",
+    "httpx>=0.28",
+    "sse-starlette>=2.3",
+    "langgraph>=1.2",
+    "langchain-core>=1.6",
+    "langchain-openai>=1.6",
+    "qdrant-client>=1.19",
+    "pypdf>=5.0",
     "pdfplumber>=0.11",
-    "python-docx>=1.1",
+    "python-docx>=1.2",
     "langfuse>=2.55",
     "beautifulsoup4>=4.12",
     "lxml>=5.2",
@@ -31,17 +31,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "ruff>=0.5",
-    "pytest>=8.2",
-    "pytest-asyncio>=0.23",
-]
 eval = [
-    "ragas>=0.1.14",
+    "ragas>=0.2",
     "datasets>=2.19",
 ]
 bench = [
-    "locust>=2.28",
+    "locust>=2.46",
 ]
 
 [tool.ruff]
@@ -71,7 +66,7 @@ dev = [
     "python-docx>=1.2.0",
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
-    "ruff>=0.9",
+    "ruff>=0.11",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -621,11 +621,6 @@ dependencies = [
 bench = [
     { name = "locust" },
 ]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
 eval = [
     { name = "datasets" },
     { name = "ragas" },
@@ -643,37 +638,34 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
-    { name = "cryptography", specifier = ">=42.0" },
+    { name = "cryptography", specifier = ">=44.0" },
     { name = "datasets", marker = "extra == 'eval'", specifier = ">=2.19" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.27" },
+    { name = "fastapi", specifier = ">=0.141" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "jieba", specifier = ">=0.42" },
-    { name = "langchain-core", specifier = ">=0.3" },
-    { name = "langchain-openai", specifier = ">=0.2" },
+    { name = "langchain-core", specifier = ">=1.6" },
+    { name = "langchain-openai", specifier = ">=1.6" },
     { name = "langfuse", specifier = ">=2.55" },
-    { name = "langgraph", specifier = ">=0.2" },
-    { name = "locust", marker = "extra == 'bench'", specifier = ">=2.28" },
+    { name = "langgraph", specifier = ">=1.2" },
+    { name = "locust", marker = "extra == 'bench'", specifier = ">=2.46" },
     { name = "lxml", specifier = ">=5.2" },
     { name = "pdfplumber", specifier = ">=0.11" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pydantic-settings", specifier = ">=2.3" },
-    { name = "pyjwt", specifier = ">=2.8" },
+    { name = "pydantic", specifier = ">=2.13" },
+    { name = "pydantic-settings", specifier = ">=2.15" },
+    { name = "pyjwt", specifier = ">=2.10" },
     { name = "pymysql", specifier = ">=1.1" },
-    { name = "pypdf", specifier = ">=4.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
-    { name = "python-docx", specifier = ">=1.1" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "qdrant-client", specifier = ">=1.9" },
-    { name = "ragas", marker = "extra == 'eval'", specifier = ">=0.1.14" },
+    { name = "pypdf", specifier = ">=5.0" },
+    { name = "python-docx", specifier = ">=1.2" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "qdrant-client", specifier = ">=1.19" },
+    { name = "ragas", marker = "extra == 'eval'", specifier = ">=0.2" },
     { name = "rank-bm25", specifier = ">=0.2" },
-    { name = "redis", specifier = ">=5.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
-    { name = "sqlalchemy", specifier = ">=2.0" },
-    { name = "sse-starlette", specifier = ">=2.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
+    { name = "redis", specifier = ">=8.1" },
+    { name = "sqlalchemy", specifier = ">=2.0.54" },
+    { name = "sse-starlette", specifier = ">=2.3" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.53" },
 ]
-provides-extras = ["dev", "eval", "bench"]
+provides-extras = ["eval", "bench"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -681,7 +673,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.25" },
     { name = "python-docx", specifier = ">=1.2.0" },
-    { name = "ruff", specifier = ">=0.9" },
+    { name = "ruff", specifier = ">=0.11" },
 ]
 
 [[package]]
