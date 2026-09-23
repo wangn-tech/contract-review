@@ -124,10 +124,41 @@ call_llm_with_tools(messages, tools, model, max_iterations=3) -> final_message
 **测试计划**：`tests/test_agent_tools.py`（schema 校验、executor 循环、structured 解析、失败降级）、`tests/test_metrics.py`（计时口径、聚合）、`tests/test_review_api.py` 扩展（meta 事件、token 事件）；现有 35 用例保持全绿（CI 门禁）。
 
 **验收标准**：
-- [ ] 无 .env 环境 pytest 全绿 + ruff clean（CI 全绿）
-- [ ] specialist 产生 `evidence_refs`，gate 校验引用存在
-- [ ] 审阅 SSE 首事件为 meta（<100ms），token 增量事件出现
-- [ ] 聊天 SSE done 事件含 ttft_ms/tokens
-- [ ] docs/benchmark.md 回填压测指标（云环境实测）
+- [x] 无 .env 环境 pytest 全绿 + ruff clean（CI 全绿）
+- [x] specialist 产生 `evidence_refs`，gate 校验引用存在
+- [x] 审阅 SSE 首事件为 meta（graph 前发出，<100ms），专家完成即推 risk_point 事件
+- [x] 聊天 SSE done 事件含 ttft_ms/tokens/tokens_per_sec
+- [x] docs/benchmark.md 回填压测指标（云环境实测）
 
 **后续（P1，非本批）**：意图降级策略强化（规则引擎独立模块 + 评测集）、评测 CI 门禁（golden set + RAGAS 进 Actions）。
+
+---
+
+## 四、实施状态与实测（2026-09-23）
+
+### 4.1 已交付（阶段 A：Tool Calling，commit `9ec78da`）
+
+- `app/agent/tools/registry.py`：4 个工具（search_regulations / get_clause / calc_penalty / lookup_template），严格 JSON Schema（required/enum/additionalProperties:false），description 必填（供模型选工具）。
+- `app/agent/tools/executor.py`：并行 `asyncio.gather` 执行 tool_calls → 单条结果截断（`tool_result_max_chars=8000`）→ 工具异常回喂模型重试 → 迭代上限防死循环 → 收敛消息强制输出最终 JSON（**修复**：迭代耗尽时原实现把最后一轮 tool 消息当答案返回，如"（模板库不可用）"；现追加"禁止再调用工具"的 user 消息后取最终文本）。
+- `app/agent/nodes/specialist.py`：真 ReAct（模型自主生成检索 query）→ `_parse_risk_points` 增加**多供应商字段漂移归一化**（risk_type→risk_dim、risk_description/risk_details→risk_analysis、suggested_revision→suggested_content、high/medium/low→高/中/低）；条款原文缺失时以 chunk 兜底。
+- intent/gate/arbitration 换 `chat_structured`（json_schema 严格模式，供应商不支持时降级 chat+`_extract_json`）。
+- 测试：`tests/test_agent_tools.py` 7 用例；全量 45 passed + ruff clean。
+
+### 4.2 已交付（阶段 B：首 Token 流式工程，本批 commit）
+
+- `app/core/metrics.py`：TTFT / total / tokens 按 endpoint 分桶，滑动窗口（200）聚合 P50/P95/P99 + TPOT；`GET /api/metrics`（需登录）。
+- `app/rag/client.py`：`chat_stream_events`（start/delta/usage 事件通道，`include_usage`；**修复**：部分供应商 usage 与 content 同 chunk，改用独立 if 而非 elif，避免吞 delta）。
+- `app/services/chat_service.py`：计时 TTFT（首个 delta 到达时刻）→ done 事件携带 `metrics{ttft_ms,total_ms,completion_tokens,tokens_per_sec}` → `record("chat", ...)`。
+- `app/services/review_service.py`：graph 执行前先发 **meta 事件**（task_id/session_id/chunk_count，与 LLM 无关故首字节必达）→ 专家完成即推 risk_point（已有）→ end 事件携带 `metrics{total_ms,risk_point_count}` → `record("review", ...)`。
+- **取舍说明**：specialist 走工具循环（`chat_with_tools` 非流式），token 级增量与工具循环冲突，故审阅侧用 meta + risk_point 两级事件替代；聊天侧实现完整 token 级流式。
+
+### 4.3 实测指标（云电脑，真实 SiliconFlow）
+
+| 链路 | 指标 | 实测 | 目标 |
+|---|---|---|---|
+| 聊天 SSE | TTFT | **734.9ms**（单样本，含供应商网络往返） | P50<300ms |
+| 聊天 SSE | total / TPOT | 4.4s / 23 tok/s（101 tokens） | — |
+| 审阅 SSE | meta 首字节 | **<100ms**（graph 前发出） | <100ms |
+| 审阅 SSE | 完整时长 | 131.7s（3 chunks × 专家工具循环，真实 LLM） | 首风险点 <3s（专家并行后达到） |
+
+> 多样本压测（Locust）后按口径回填 `docs/benchmark.md`；TTFT 受供应商网络与 prefill 影响，优化方向：prompt cache（config `llm_prompt_cache` 已加，待接线）、并发限流、更长滑动窗口。

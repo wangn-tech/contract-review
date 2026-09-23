@@ -198,6 +198,34 @@ class LLMClient:
             if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
 
+    async def chat_stream_events(self, messages: list[dict], model: str | None = None, **kwargs: Any):
+        """流式事件生成器：yield ("start", None) → ("delta", text)… → ("usage", dict)。
+
+        供需要 TTFT / token 统计的流式链路（chat_service）使用。
+        """
+        model = model or settings.llm_chat_model
+        kwargs.setdefault("stream_options", {"include_usage": True})
+        stream = await self._openai.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+            **kwargs,
+        )
+        yield ("start", None)
+        async for chunk in stream:
+            # 独立判断：部分供应商 usage 与 content 可能同 chunk，用 if 而非 elif 避免吞 delta
+            if chunk.usage:
+                yield (
+                    "usage",
+                    {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    },
+                )
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                yield ("delta", chunk.choices[0].delta.content)
+
     # ---------- embedding（OpenAI SDK） ----------
     async def embed(self, texts: list[str], model: str | None = None) -> list[list[float]]:
         model = model or settings.embedding_model

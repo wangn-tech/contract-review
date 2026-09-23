@@ -1,11 +1,17 @@
-"""Chat streaming service: SSE response with context from contract + history."""
+"""Chat streaming service: SSE response with context from contract + history.
+
+简历点：首 Token 工程——流式事件通道（start/delta/usage）计时 TTFT，
+done 事件携带 ttft_ms / tokens / TPOT，指标进 /api/metrics 滑动窗口。
+"""
 import json
+import time
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session as DBSession
 
 from app.core.cache import cache_get
 from app.core.config import get_settings
+from app.core.metrics import record
 from app.models.session_message import Message, Session
 from app.models.user import User
 from app.rag.client import get_sf_client
@@ -23,8 +29,6 @@ async def _history_messages(db: DBSession, session_id: int, max_turns: int = 10)
     cached = await cache_get(cache_key)
     if cached:
         try:
-            import json
-
             msgs = json.loads(cached)
             return msgs[-max_turns * 2 :]
         except Exception:  # noqa: BLE001
@@ -73,19 +77,35 @@ async def stream_chat(
         system += f"\n\n合同原文（节选）：\n{contract_text}"
 
     full_content: list[str] = []
+    usage: dict = {}
 
     async def gen():
-        async for delta in client.chat_stream(
+        t0 = time.monotonic()
+        ttft_ms: float | None = None
+        async for kind, payload in client.chat_stream_events(
             [{"role": "system", "content": system}, *history, {"role": "user", "content": request.content or ""}],
             model=settings.llm_chat_model,
         ):
-            full_content.append(delta)
-            yield f"data: {json.dumps({'type': 'content', 'content': delta, 'session_id': session.id}, ensure_ascii=False)}\n\n"
+            if kind == "delta":
+                if ttft_ms is None:
+                    ttft_ms = (time.monotonic() - t0) * 1000  # 首个 token 到达时刻
+                full_content.append(payload)
+                yield f"data: {json.dumps({'type': 'content', 'content': payload, 'session_id': session.id}, ensure_ascii=False)}\n\n"
+            elif kind == "usage":
+                usage.update(payload)
+        total_ms = (time.monotonic() - t0) * 1000
         text = "".join(full_content)
         message = Message(session_id=session.id, role="assistant", content=text)
         db.add(message)
         db.commit()
         db.refresh(message)
-        yield f"data: {json.dumps({'type': 'done', 'message_id': message.id, 'full_content': text}, ensure_ascii=False)}\n\n"
+        completion_tokens = usage.get("completion_tokens")
+        record(
+            "chat",
+            ttft_ms=ttft_ms,
+            total_ms=total_ms,
+            tokens=completion_tokens,
+        )
+        yield f"data: {json.dumps({'type': 'done', 'message_id': message.id, 'full_content': text, 'metrics': {'ttft_ms': round(ttft_ms or 0, 1), 'total_ms': round(total_ms, 1), 'completion_tokens': completion_tokens, 'tokens_per_sec': round((completion_tokens or 0) / (total_ms / 1000), 1) if total_ms > 0 else 0}}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")

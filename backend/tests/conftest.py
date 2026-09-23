@@ -27,6 +27,11 @@ class FakeLLMClient:
     async def chat_stream(self, *args, **kwargs):
         yield "[STREAM_DONE]"
 
+    async def chat_stream_events(self, *args, **kwargs):
+        yield ("start", None)
+        yield ("delta", "[STREAM_DONE]")
+        yield ("usage", {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
+
     async def embed(self, texts: list[str], *args, **kwargs):
         return [[0.0] * 1024 for _ in texts]
 

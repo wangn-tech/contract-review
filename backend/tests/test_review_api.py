@@ -151,9 +151,11 @@ def test_chat_sse_with_context(client, auth_headers, monkeypatch):
     from app.services import chat_service
 
     class FakeClient:
-        async def chat_stream(self, messages, model=None, **kwargs):
+        async def chat_stream_events(self, messages, model=None, **kwargs):
+            yield ("start", None)
             for delta in ["这是", "回答"]:
-                yield delta
+                yield ("delta", delta)
+            yield ("usage", {"prompt_tokens": 10, "completion_tokens": 6, "total_tokens": 16})
 
     monkeypatch.setattr(chat_service, "get_sf_client", lambda: FakeClient())
 

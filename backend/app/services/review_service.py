@@ -2,6 +2,7 @@
 import asyncio
 import json
 import re
+import time
 from datetime import UTC, datetime
 
 from fastapi.responses import StreamingResponse
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.agent.graph import get_graph
 from app.agent.state import ReviewState
 from app.core.cache import acquire_lock, release_lock
+from app.core.metrics import record as record_metric
 from app.models.contract import ContractFile
 from app.models.review import ReviewResult, ReviewTask
 from app.models.session_message import Session
@@ -116,7 +118,11 @@ async def stream_review_events(
         if not await acquire_lock(lock_key, lock_token, ttl=900):
             yield f"data: {json.dumps({'event': 'error', 'data': {'message': '该会话已有审阅任务进行中，请等待完成'}}, ensure_ascii=False)}\n\n"
             return
+        t0 = time.monotonic()
         try:
+            # 首事件 meta 骨架：与 LLM 无关，首字节 <100ms 必达
+            # （routed/risk_dims 此时尚未由 router 节点填充，故不输出，避免误导）
+            yield f"data: {json.dumps({'event': 'meta', 'data': {'task_id': task.id, 'session_id': request.session_id, 'chunk_count': len(chunks)}}, ensure_ascii=False)}\n\n"
             graph = get_graph(rag)
             # 流式执行：custom 模式推送专家实时结果，updates 模式收集仲裁后的最终状态
             stream = graph.astream(state, stream_mode=["custom", "updates"])
@@ -176,6 +182,9 @@ async def stream_review_events(
             task.completed_at = datetime.now(UTC)
             db.commit()
 
+            duration_ms = (time.monotonic() - t0) * 1000
+            record_metric("review", ttft_ms=None, total_ms=duration_ms, tokens=None)
+
             end_msg = json.dumps(
                 {
                     "event": "end",
@@ -184,6 +193,7 @@ async def stream_review_events(
                         "summary": summary.get("summary", ""),
                         "suggestion": summary.get("suggestion", ""),
                         "overall_risk": summary.get("overall_risk", "低"),
+                        "metrics": {"total_ms": round(duration_ms, 1), "risk_point_count": len(points)},
                     },
                 },
                 ensure_ascii=False,

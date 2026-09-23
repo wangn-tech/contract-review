@@ -29,8 +29,18 @@ TOOL_USAGE_HINT = (
 )
 
 
+def _normalize_level(level: str) -> str:
+    """多供应商字段漂移归一化：high→高 / medium→中 / low→低。"""
+    mapping = {"high": "高", "medium": "中", "low": "低", "严重": "高", "较高": "高", "一般": "中", "较低": "低"}
+    return mapping.get(str(level).strip().lower(), level if level in {"高", "中", "低"} else "中")
+
+
 def _parse_risk_points(raw: str) -> list[dict]:
-    """解析专家输出 JSON；兼容 ```json 包裹与容错提取。"""
+    """解析专家输出 JSON；兼容 ```json 包裹与容错提取。
+
+    归一化常见模型字段漂移：risk_type→risk_dim、risk_description/risk_details→risk_analysis、
+    suggested_revision→suggested_content；risk_level 统一 高/中/低。
+    """
     import re
 
     text = raw.strip()
@@ -46,16 +56,42 @@ def _parse_risk_points(raw: str) -> list[dict]:
         return []
     cleaned = []
     for p in points:
-        if isinstance(p, dict) and p.get("original_content"):
-            cleaned.append(
-                {
-                    "original_content": str(p.get("original_content", ""))[:2000],
-                    "risk_analysis": str(p.get("risk_analysis", ""))[:2000],
-                    "risk_level": p.get("risk_level", "中") if p.get("risk_level") in {"高", "中", "低"} else "中",
-                    "suggested_content": str(p.get("suggested_content", ""))[:2000],
-                    "evidence_refs": p.get("evidence_refs", []) if isinstance(p.get("evidence_refs"), list) else [],
-                }
-            )
+        if not isinstance(p, dict):
+            continue
+        original = (
+            p.get("original_content")
+            or p.get("original_text")
+            or p.get("contract_clause")
+            or p.get("clause_text")
+            or ""
+        )
+        analysis = (
+            p.get("risk_analysis")
+            or p.get("risk_description")
+            or p.get("risk_details")
+            or p.get("analysis")
+            or p.get("reason")
+            or ""
+        )
+        suggestion = (
+            p.get("suggested_content")
+            or p.get("suggested_revision")
+            or p.get("suggestion")
+            or p.get("revision_suggestion")
+            or ""
+        )
+        if not original and not analysis:
+            continue
+        cleaned.append(
+            {
+                "original_content": str(original)[:2000],
+                "risk_analysis": str(analysis)[:2000],
+                "risk_level": _normalize_level(str(p.get("risk_level", "中"))),
+                "suggested_content": str(suggestion)[:2000],
+                "evidence_refs": p.get("evidence_refs", []) if isinstance(p.get("evidence_refs"), list) else [],
+                "risk_dim": str(p.get("risk_type") or p.get("risk_dim") or "")[:32],
+            }
+        )
     return cleaned
 
 
@@ -120,6 +156,10 @@ async def _run_specialist(
                 context=ctx,
             )
             points = _parse_risk_points(text)
+            # 条款原文兜底：模型未输出 original_content 时，用本条 chunk 作为条款上下文
+            for p in points:
+                if not p.get("original_content"):
+                    p["original_content"] = chunk[:2000]
             if not points:
                 # 未解析出风险点 → 检索证据后再试（降级路径）
                 evidence_ctx, evidence = await rag.search_with_context(chunk, risk_dim=risk_dim, top_k=3)

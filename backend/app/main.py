@@ -11,6 +11,7 @@ from app.api import (
     comparisons,
     contracts,
     dashboard,
+    metrics,
     reviews,
     sessions,
     users,
@@ -67,6 +68,7 @@ app.include_router(comparisons.router, prefix="/api")
 app.include_router(chats.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(metrics.router, prefix="/api")
 
 if settings.mcp_enabled:
     from app.mcp.server import get_fastmcp_app

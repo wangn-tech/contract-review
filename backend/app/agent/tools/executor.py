@@ -134,5 +134,19 @@ async def call_llm_with_tools(
             loop_messages.append({"role": "tool", "tool_call_id": tc.id, "content": text})
         logger.info("tool round: %d calls, %d ms total", len(tool_calls), sum(r.ms for r in records))
 
-    # 达到迭代上限：返回最后一轮文本（可为空，由调用方降级）
-    return loop_messages[-1].get("content") or "", records
+    # 达到迭代上限：强制收敛——追加“禁止再调工具”的 user 消息，取最终文本
+    # （否则最后一轮 tool 消息会被当成答案返回，如"（模板库不可用）"）
+    loop_messages.append(
+        {
+            "role": "user",
+            "content": "你已多次调用工具。请仅基于以上工具结果直接输出最终答案（严格按要求的 JSON 格式，禁止再调用任何工具）。",
+        }
+    )
+    try:
+        final_message = await client.chat(
+            loop_messages, model=model, temperature=temperature, max_tokens=max_tokens
+        )
+        return final_message or "", records
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("final convergence chat failed: %s", exc)
+        return "", records

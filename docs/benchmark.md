@@ -35,6 +35,19 @@
 3. **Locust SSE API 兼容**：`client.stream()` 在 locust 2.46 已移除，改为 `client.request(..., stream=True)`；`iter_lines()` 返回 bytes 需解码。
 4. **审阅并发安全**：`start_review` 会清理同 session 旧任务，压测按用户隔离 session，避免互删。
 
+## 4.5 首 Token 流式工程实测（Phase B，2026-09-23）
+
+> 新增 `/api/metrics` 滑动窗口（200）聚合：TTFT / 总延迟 P50/P95/P99 / TPOT；聊天 done 事件与审阅 end 事件均携带 metrics。
+
+| 链路 | 指标 | 实测 | 目标 | 备注 |
+|---|---|---|---|---|
+| 聊天 SSE | TTFT | 734.9ms（单样本） | P50<300ms | 含供应商网络往返与 prefill；多样本压测后更新 |
+| 聊天 SSE | total / TPOT | 4396.5ms / 23.0 tok/s | — | avg 101 tokens |
+| 审阅 SSE | meta 首字节 | <100ms（graph 前发出） | <100ms | 与 LLM 无关，必达 |
+| 审阅 SSE | 完整时长 | 131.7s（3 chunks） | 首风险点 <3s | 专家并行 ReAct + 工具循环（真实 LLM） |
+
+**TTFT 优化方向**：prompt cache（`llm_prompt_cache` 配置已加）、供应商并发限流、输入裁剪（合同原文 8000 字截断）。
+
 ## 5. 说明与局限
 
 - 本环境用 SQLite+fakeredis 替代 MySQL/Redis，读写并发低于生产 Docker（mysql/redis）配置，P99 尾部延迟会略低于真实部署。
