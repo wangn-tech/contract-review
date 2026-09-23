@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.agent.graph import get_graph
 from app.agent.state import ReviewState
+from app.core.cache import acquire_lock, release_lock
 from app.models.contract import ContractFile
 from app.models.review import ReviewResult, ReviewTask
 from app.models.session_message import Session
@@ -108,6 +109,12 @@ async def stream_review_events(
     }
 
     async def gen():
+        # Redis 并发锁：同一会话只允许一个审阅任务（防止并发互删旧结果）
+        lock_key = f"review_lock:{request.session_id}"
+        lock_token = f"{request.session_id}-{id(request)}"
+        if not await acquire_lock(lock_key, lock_token, ttl=900):
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': '该会话已有审阅任务进行中，请等待完成'}}, ensure_ascii=False)}\n\n"
+            return
         try:
             graph = get_graph(rag)
             # 流式执行：custom 模式推送专家实时结果，updates 模式收集仲裁后的最终状态
@@ -185,5 +192,7 @@ async def stream_review_events(
             task.status = "failed"
             db.commit()
             yield f"data: {json.dumps({'event': 'error', 'data': {'message': str(exc)}}, ensure_ascii=False)}\n\n"
+        finally:
+            await release_lock(lock_key, lock_token)
 
     return StreamingResponse(gen(), media_type="text/event-stream")

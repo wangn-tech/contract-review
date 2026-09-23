@@ -4,6 +4,7 @@ import json
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session as DBSession
 
+from app.core.cache import cache_get
 from app.core.config import get_settings
 from app.models.session_message import Message, Session
 from app.models.user import User
@@ -16,7 +17,18 @@ SYSTEM_TEMPLATE = """你是高校合同审阅助手，围绕当前合同文件�
 规则：只依据合同原文与检索到的制度/法规回答；无法确定时明确说明；不编造条款。"""
 
 
-def _history_messages(db: DBSession, session_id: int, max_turns: int = 10) -> list[dict]:
+async def _history_messages(db: DBSession, session_id: int, max_turns: int = 10) -> list[dict]:
+    # Redis 缓存：热点会话直接命中，TTL=chat_cache_ttl
+    cache_key = f"chat:{session_id}:history"
+    cached = await cache_get(cache_key)
+    if cached:
+        try:
+            import json
+
+            msgs = json.loads(cached)
+            return msgs[-max_turns * 2 :]
+        except Exception:  # noqa: BLE001
+            pass
     rows = (
         db.query(Message)
         .filter(Message.session_id == session_id)
@@ -48,7 +60,7 @@ async def stream_chat(
 ) -> StreamingResponse:
     client = get_sf_client()
     contract_text = _load_contract_text(db, session)
-    history = _history_messages(db, session.id)
+    history = await _history_messages(db, session.id)
 
     # 保存用户消息
     db.add(

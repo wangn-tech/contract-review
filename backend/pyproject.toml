@@ -22,7 +22,11 @@ dependencies = [
     "qdrant-client>=1.19",
     "pypdf>=5.0",
     "pdfplumber>=0.11",
+    "pymupdf>=1.24",
+    "pdf2image>=1.17",
+    "pytesseract>=0.3.13",
     "python-docx>=1.2",
+    "mcp>=1.9",
     "langfuse>=2.55",
     "beautifulsoup4>=4.12",
     "lxml>=5.2",
@@ -37,6 +41,10 @@ eval = [
 ]
 bench = [
     "locust>=2.46",
+]
+heavy-doc = [
+    "docling>=2.2",
+    "mineru>=2.0",
 ]
 
 [tool.ruff]

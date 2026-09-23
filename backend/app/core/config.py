@@ -72,6 +72,23 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     cas_server_url: str = ""
 
+    # 文档解析引擎（有序回退链）
+    doc_parser_engines: str = "pdfplumber,pymupdf,pypdf,docx,libreoffice,ocr"
+    ocr_lang: str = "chi_sim"
+    deepseek_ocr_api_key: str = ""
+    deepseek_ocr_model: str = "deepseek-ocr"
+
+    # 中间件 / 缓存 / 限流
+    auth_middleware_enabled: bool = True
+    request_log_enabled: bool = True
+    rate_limit_enabled: bool = False
+    rate_limit_per_minute: int = 120
+    chat_cache_ttl: int = 1800
+
+    # MCP
+    mcp_enabled: bool = False
+    mcp_server_urls: str = ""
+
     @property
     def mysql_dsn(self) -> str:
         return (

@@ -71,7 +71,7 @@ async def upload_contract(
         parse_status="parsed",
         party_a=info["party_a"],
         party_b=info["party_b"],
-        amount=info["amount"],
+        amount=float(info["amount"]) if info.get("amount") else None,
     )
     db.add(record)
     db.commit()
