@@ -26,6 +26,8 @@ dependencies = [
     "langfuse>=2.40",
     "beautifulsoup4>=4.12",
     "lxml>=5.2",
+    "rank-bm25>=0.2",
+    "jieba>=0.42",
 ]
 
 [project.optional-dependencies]

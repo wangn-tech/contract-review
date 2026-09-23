@@ -1,0 +1,56 @@
+"""Qdrant loader: write dense vectors with payload metadata (dense path of hybrid RAG)."""
+import hashlib
+
+from qdrant_client import AsyncQdrantClient, models
+
+from app.core.config import get_settings
+from app.rag.client import get_sf_client
+from app.rag.ingest.chunker import Chunk
+
+settings = get_settings()
+
+
+def _point_id(doc_id: str, idx: int) -> str:
+    return hashlib.md5(f"{doc_id}:{idx}".encode()).hexdigest()
+
+
+async def ensure_collection(client: AsyncQdrantClient, collection: str, vector_size: int = 1024) -> None:
+    exists = await client.collection_exists(collection)
+    if not exists:
+        await client.create_collection(
+            collection_name=collection,
+            vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE),
+            # 元数据过滤索引
+            payload_schema={
+                "doc_type": models.PayloadSchemaType.KEYWORD,
+                "source": models.PayloadSchemaType.KEYWORD,
+                "section": models.PayloadSchemaType.TEXT,
+            },
+        )
+
+
+async def upsert_chunks(client: AsyncQdrantClient, collection: str, chunks: list[Chunk], batch_size: int = 32) -> int:
+    """批量 embedding + upsert。返回写入点数。"""
+    sf = get_sf_client()
+    count = 0
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i : i + batch_size]
+        vectors = await sf.embed([c.text for c in batch])
+        points = [
+            models.PointStruct(
+                id=_point_id(c.doc_id, idx),
+                vector=vectors[j],
+                payload={
+                    "doc_id": c.doc_id,
+                    "text": c.text,
+                    "source": c.source,
+                    "doc_type": c.doc_type,
+                    "section": c.section,
+                    **c.meta,
+                },
+            )
+            for j, (idx, c) in enumerate(zip(range(i, i + len(batch)), batch, strict=True))
+        ]
+        await client.upsert(collection_name=collection, points=points)
+        count += len(points)
+    return count
