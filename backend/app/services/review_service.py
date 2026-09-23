@@ -110,10 +110,24 @@ async def stream_review_events(
     async def gen():
         try:
             graph = get_graph(rag)
-            result = await graph.ainvoke(state)
+            # 流式执行：custom 模式推送专家实时结果，updates 模式收集仲裁后的最终状态
+            stream = graph.astream(state, stream_mode=["custom", "updates"])
+            final_points: list[dict] = []
+            summary: dict = {}
+            async for mode, payload in stream:
+                if mode == "custom":
+                    if isinstance(payload, dict) and payload.get("type") == "risk_point":
+                        for p in payload.get("points", []):
+                            if isinstance(p, dict):
+                                yield f"data: {json.dumps({'event': 'message', 'data': p}, ensure_ascii=False)}\n\n"
+                                await asyncio.sleep(0.01)
+                elif mode == "updates":
+                    for node, upd in payload.items():
+                        if node == "arbitration" and isinstance(upd, dict):
+                            final_points = upd.get("final_risk_points") or []
+                            summary = upd.get("summary") or {}
 
-            points = result.get("final_risk_points", [])
-            summary = result.get("summary", {})
+            points = final_points
 
             # 写入 DB 并按序 SSE 输出
             for idx, point in enumerate(points, start=1):

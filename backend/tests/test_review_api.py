@@ -23,6 +23,38 @@ class FakeGraph:
             "summary": {"summary": "发现 1 个风险点", "suggestion": "补充违约金基数", "overall_risk": "低"},
         }
 
+    async def astream(self, state, stream_mode=None):
+        """custom 模式推送一个风险点；updates 模式返回仲裁后的最终状态。"""
+        if stream_mode == "custom":
+            yield "custom", {
+                "type": "risk_point",
+                "risk_dim": "财务与付款",
+                "points": [
+                    {
+                        "original_content": "乙方逾期付款按日万分之五支付违约金",
+                        "risk_analysis": "违约金计算基数不明确（合同总额 vs 未付金额）",
+                        "risk_level": "中",
+                        "suggested_content": "明确违约金计算基数为未付金额",
+                    }
+                ],
+            }
+        elif isinstance(stream_mode, list) and "updates" in stream_mode:
+            yield "updates", {
+                "arbitration": {
+                    "final_risk_points": [
+                        {
+                            "index": 1,
+                            "original_content": "乙方逾期付款按日万分之五支付违约金",
+                            "risk_analysis": "违约金计算基数不明确（合同总额 vs 未付金额）",
+                            "risk_level": "中",
+                            "suggested_content": "明确违约金计算基数为未付金额",
+                            "risk_dim": "财务与付款",
+                        }
+                    ],
+                    "summary": {"summary": "发现 1 个风险点", "suggestion": "补充违约金基数", "overall_risk": "低"},
+                }
+            }
+
 
 @pytest.fixture()
 def upload_review_context(client, auth_headers, monkeypatch):

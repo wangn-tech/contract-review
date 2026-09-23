@@ -25,8 +25,10 @@ def build_ragas_dataset(
 
 async def run_ragas_eval(dataset: list[dict], llm_model: str | None = None) -> dict:
     """执行 RAGAS 四指标评估（LLM-as-judge）。"""
-    from langchain_openai import ChatOpenAI
+    import ragas.evaluation as ragas_eval_mod
+    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
     from ragas import EvaluationDataset, evaluate
+    from ragas.embeddings import LangchainEmbeddingsWrapper
     from ragas.llms import LangchainLLMWrapper
     from ragas.metrics import (
         Faithfulness,
@@ -45,6 +47,15 @@ async def run_ragas_eval(dataset: list[dict], llm_model: str | None = None) -> d
         temperature=0,
     )
     wrapper = LangchainLLMWrapper(llm)
+    # RAGAS 上下文精度指标依赖 embedding：接入 SiliconFlow bge-m3
+    embeddings = LangchainEmbeddingsWrapper(
+        OpenAIEmbeddings(
+            model=settings.embedding_model,
+            base_url=settings.siliconflow_base_url,
+            api_key=settings.siliconflow_api_key,
+        )
+    )
+    ragas_eval_mod.embedding_factory = lambda *args, **kwargs: embeddings
     eval_dataset = EvaluationDataset.from_list(dataset)
     result = evaluate(
         dataset=eval_dataset,

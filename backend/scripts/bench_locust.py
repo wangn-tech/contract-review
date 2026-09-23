@@ -12,25 +12,31 @@
   - /api/chats: SSE 流式首 token 延迟、完整回复时长
 """
 import json
-import random
 
 from locust import HttpUser, between, task
 
 USERNAME = "bench"
 PASSWORD = "bench123"
 
-# 压测需预先准备：登录用户 + 已解析合同 + 审阅会话
-CONTRACT_IDS = [1]
-SESSION_IDS = [1]
+# 压测需预先准备：每个账号独立合同+会话（scripts 提供 bench_prepare 一键准备）
+# SESSION_IDS 按用户索引对应：bench->2, bench_1->3, ...（本机压测环境实测值）
+CONTRACT_IDS = []
+SESSION_IDS = [2, 3, 4, 5, 6, 7]
 
 
 class ContractReviewUser(HttpUser):
     wait_time = between(1, 3)
+    _user_index = 0  # 每个用户独立账号，避免登录互踢（access_token 单值覆盖）
 
     def on_start(self):
+        cls = self.__class__
+        idx = cls._user_index
+        cls._user_index += 1
+        username = f"{USERNAME}_{idx}" if idx > 0 else USERNAME
+        self.session_id = SESSION_IDS[idx % len(SESSION_IDS)]
         resp = self.client.post(
             "/api/auth/login",
-            json={"identifier": USERNAME, "password": PASSWORD},
+            json={"identifier": username, "password": PASSWORD},
         )
         if resp.status_code == 200:
             self.token = resp.json()["data"]["access_token"]
@@ -48,26 +54,27 @@ class ContractReviewUser(HttpUser):
         """审阅 SSE 全链路：测 TTFT 与完整时长。"""
         if not self.token or not CONTRACT_IDS:
             return
-        with self.client.stream(
+        with self.client.request(
             "POST",
             "/api/reviews/start",
             json={
-                "session_id": random.choice(SESSION_IDS),
+                "session_id": self.session_id,
                 "contract_type": "服务",
                 "stance": "甲方",
                 "intensity": "标准",
                 "max_concurrent": 10,
             },
             headers=self.headers,
+            stream=True,
             catch_response=True,
             name="/api/reviews/start (SSE)",
         ) as resp:
             first = True
             done = False
             for line in resp.iter_lines():
-                if not line or not line.startswith("data:"):
+                if not line or not line.startswith(b"data:"):
                     continue
-                payload = json.loads(line[5:])
+                payload = json.loads(line[5:].decode("utf-8"))
                 if first:
                     # 首包时间 = TTFT，由 Locust 自动计时（stream 计时从请求发出到首个响应）
                     first = False
@@ -83,20 +90,21 @@ class ContractReviewUser(HttpUser):
         """聊天 SSE：流式首 token 与完整回复。"""
         if not self.token:
             return
-        with self.client.stream(
+        with self.client.request(
             "POST",
             "/api/chats",
-            json={"session_id": None, "content": "付款条款一般包含哪些要素？"},
+            json={"session_id": self.session_id, "content": "付款条款一般包含哪些要素？"},
             headers=self.headers,
+            stream=True,
             catch_response=True,
             name="/api/chats (SSE)",
         ) as resp:
             got_content = False
             done = False
             for line in resp.iter_lines():
-                if not line or not line.startswith("data:"):
+                if not line or not line.startswith(b"data:"):
                     continue
-                payload = json.loads(line[5:])
+                payload = json.loads(line[5:].decode("utf-8"))
                 if payload.get("type") == "content":
                     got_content = True
                 if payload.get("type") == "done":

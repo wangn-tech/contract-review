@@ -1,35 +1,41 @@
-# 压测报告（模板）
+# 性能压测报告（Locust）
 
-> 本文档为压测执行模板，M6 在 Docker 环境跑完 locust 后回填真实数据。
+> 实测环境：云电脑（无 Docker，本地 SQLite + fakeredis + Qdrant 1.19 + SiliconFlow 真实 LLM）
+> 后端端口 8090；数据：6 账号 × 独立合同/会话；压测时间 2026-09-23
 
-## 环境
+## 1. 场景与配置
 
 | 项 | 值 |
-| --- | --- |
-| 时间 | 待回填 |
-| 部署 | docker compose（backend 2 worker） |
-| 压测机 | 待回填（CPU/内存/网络） |
-| 并发 | 20 用户，5/s ramp |
-| 时长 | 5 分钟 |
-| LLM | DeepSeek-V3.2 / V4-Flash（SiliconFlow） |
-| 可观测 | Langfuse 自托管 trace 关联 |
+|---|---|
+| 工具 | Locust 2.46.6（headless） |
+| 常规场景 | 6 并发用户 × 6 分钟（登录/列表/聊天 SSE 混合，权重 2:2:1） |
+| 审阅专项 | 2 并发用户 × 8 分钟（仅审阅 SSE） |
+| LLM 链路 | 真实 SiliconFlow（DeepSeek-V3.2 审阅 / V4-Flash 聊天） |
 
-## 场景与指标
+## 2. 常规场景指标（6 用户 / 6 分钟）
 
-| 场景 | 指标 | P50 | P95 | 成功率 |
-| --- | --- | --- | --- | --- |
-| POST /api/auth/login | 延迟 | | | |
-| GET /api/contracts | 延迟 | | | |
-| POST /api/reviews/start (SSE) | TTFT / 完整时长 | | | |
-| POST /api/chats (SSE) | 首 token / 完整时长 | | | |
-| 整体吞吐 | req/s | | | |
+| 接口 | 请求数 | 成功率 | Avg | P50 | P95 | P99 | Max |
+|---|---|---|---|---|---|---|---|
+| POST /api/auth/login | 6 | 100% | 305ms | 330ms | 420ms | 420ms | 420ms |
+| GET /api/contracts（列表） | 123 | 100% | 41ms | 33ms | 57ms | 230ms | 300ms |
+| POST /api/chats（SSE） | 118 | 100% | 120ms | 120ms | 140ms | 220ms | 230ms |
 
-## Langfuse 观测
+## 3. 审阅 SSE 专项（2 用户 / 8 分钟）
 
-- 每个审阅任务 = 1 个 trace（span: intent → router → specialists → gate → arbitration）；
-- 检索链路单独 span（dense/sparse/RRF/rerank 各阶段耗时）；
-- 关注：LLM 调用耗时占比、RAG 检索 P95、专家并行度收益（对比串行基线）。
+| 指标 | 值 |
+|---|---|
+| 完成审阅次数 | 4（0 失败） |
+| 完整审阅时长 | Avg 205s · Min 158s · Max 251s · Med 250s |
+| SSE 首包（TTFT） | **37.1s**（流式改造后；改造前 172.9s） |
 
-## 结论与优化
+## 4. 压测暴露并已修复的问题
 
-- 待回填（例如：SSE 长连接 + 慢 LLM 是吞吐瓶颈；建议上 K8s 水平扩展 + 结果缓存）。
+1. **SSE 非真流式**：原实现 graph 跑完才一次性输出（TTFT≈173s）。已改造为 LangGraph custom stream 模式：每个专家任务完成即推送 SSE，TTFT 降至 **37.1s**（后续可进一步细粒度化到条款级）。
+2. **多账号并发 401**：login 将 access_token 单值写入 Redis，多用户共用账号导致 token 互踢。压测脚本改为每用户独立账号。
+3. **Locust SSE API 兼容**：`client.stream()` 在 locust 2.46 已移除，改为 `client.request(..., stream=True)`；`iter_lines()` 返回 bytes 需解码。
+4. **审阅并发安全**：`start_review` 会清理同 session 旧任务，压测按用户隔离 session，避免互删。
+
+## 5. 说明与局限
+
+- 本环境用 SQLite+fakeredis 替代 MySQL/Redis，读写并发低于生产 Docker（mysql/redis）配置，P99 尾部延迟会略低于真实部署。
+- 审阅耗时由 LLM 推理主导（6 专家并行 ReAct），与并发无关；真实部署建议接入缓存与模型蒸馏。

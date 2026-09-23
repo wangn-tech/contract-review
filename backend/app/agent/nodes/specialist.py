@@ -90,6 +90,19 @@ async def _run_specialist(
                 continue
             points = _parse_risk_points(raw)
             if points:
+                # 流式推送：单个专家任务完成即推 SSE（LangGraph custom stream mode）
+                try:
+                    from langgraph.config import get_stream_writer
+
+                    get_stream_writer()(
+                        {
+                            "type": "risk_point",
+                            "risk_dim": risk_dim,
+                            "points": points,
+                        }
+                    )
+                except Exception:  # noqa: BLE001  writer 不可用时静默降级（非流式上下文）
+                    pass
                 return {"chunk_index": state["chunks"].index(chunk), "risk_dim": risk_dim, "result": points}
             # 未解析出风险点 → 检索证据后再试
             evidence_ctx, _ = await rag.search_with_context(chunk, risk_dim=risk_dim, top_k=3)
