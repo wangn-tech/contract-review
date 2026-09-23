@@ -1,0 +1,126 @@
+# 高校合同智能审阅系统 · Docker Compose（六服务）
+# 用法: docker compose -f deploy/docker-compose.yml up -d --build
+# 首次启动后执行知识库构建: docker compose exec backend python scripts/ingest_kb.py
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: cr-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root-pass
+      MYSQL_DATABASE: contract_review
+      MYSQL_USER: contract
+      MYSQL_PASSWORD: change-me
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - cr_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot-pass"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: cr-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - cr_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: cr-qdrant
+    volumes:
+      - cr_qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333 && echo ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: cr-langfuse
+    environment:
+      DATABASE_URL: sqlite:/data/langfuse.db
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: change-me-nextauth-secret
+      SALT: change-me-salt
+      ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+    volumes:
+      - cr_langfuse:/data
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/public/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+    container_name: cr-backend
+    environment:
+      APP_ENV: prod
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: contract
+      MYSQL_PASSWORD: change-me
+      MYSQL_DB: contract_review
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-jwt-secret}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:?请在 .env 中配置 SILICONFLOW_API_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: http://langfuse:3000
+      FRONTEND_URL: http://localhost:80
+      UPLOAD_DIR: /data/uploads
+      OSS_BUCKET_DIR: /data/parsed
+    volumes:
+      - cr_parsed:/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      langfuse:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ../frontend
+    container_name: cr-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cr_mysql:
+  cr_redis:
+  cr_qdrant:
+  cr_langfuse:
+  cr_parsed:
