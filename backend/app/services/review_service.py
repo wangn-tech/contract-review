@@ -97,6 +97,7 @@ async def stream_review_events(
         "intensity": request.intensity,
         "description": request.description or "",
         "max_concurrent": request.max_concurrent,
+        "content_path": contract.content_path or "",
         "chunks": chunks,
         "intent": "review",
         "intent_confidence": 1.0,

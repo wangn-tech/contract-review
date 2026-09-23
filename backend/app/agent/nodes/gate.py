@@ -13,6 +13,13 @@ settings = get_settings()
 
 VALID_LEVELS = {"高", "中", "低"}
 
+GATE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {"valid": {"type": "boolean", "description": "结果是否通过质检"}},
+    "required": ["valid"],
+    "additionalProperties": False,
+}
+
 
 def _rule_check(point: dict) -> list[str]:
     errors: list[str] = []
@@ -30,22 +37,18 @@ def _rule_check(point: dict) -> list[str]:
 async def _llm_check(point: dict) -> bool:
     try:
         prompt = load_prompt("gate")
-        raw = await get_sf_client().chat(
+        data = await get_sf_client().chat_structured(
             [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": json.dumps(point, ensure_ascii=False)},
             ],
+            json_schema=GATE_SCHEMA,
             model=settings.llm_intent_model,
             temperature=0,
             max_tokens=128,
         )
-        import re
-
-        match = re.search(r"\{[\s\S]*\}", raw)
-        if match:
-            return json.loads(match.group(0)).get("valid", True) is True
-        return True
-    except Exception:
+        return bool(data and data.get("valid", True) is True)
+    except Exception:  # noqa: BLE001
         return True
 
 

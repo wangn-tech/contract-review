@@ -90,6 +90,18 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 120
     chat_cache_ttl: int = 1800
 
+    # Agent 工具调用（Tool Calling）
+    agent_tool_calling_enabled: bool = True
+    agent_max_tool_iterations: int = 3  # 工具循环轮次上限（防死循环）
+    tool_result_max_chars: int = 8000   # 单条工具结果截断长度
+
+    # 流式 / 首 Token 工程
+    metrics_enabled: bool = True
+    metrics_window_size: int = 200      # 滑动窗口样本数
+    llm_prompt_cache: bool = True
+    chat_stream_timeout: float = 30.0   # 聊天流式超时（秒）
+    review_stream_timeout: float = 120.0  # 审阅流式超时（秒）
+
     # MCP
     mcp_enabled: bool = False
     mcp_server_urls: str = ""

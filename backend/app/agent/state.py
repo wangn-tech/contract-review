@@ -31,6 +31,7 @@ class ReviewState(TypedDict):
     intensity: str
     description: str
     max_concurrent: int
+    content_path: str  # 合同解析文本路径（工具 get_clause 使用）
 
     # 流程数据
     chunks: list[str]                     # 合同分块（按条款）

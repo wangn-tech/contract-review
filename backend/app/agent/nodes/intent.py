@@ -1,11 +1,8 @@
-"""Intent classifier node: LLM structured classification + rule-based fallback.
+"""Intent classifier node: structured output classification + rule-based fallback.
 
-简历点：混合路由——LLM 主分类（JSON 结构化输出），解析失败/低置信时
-降级到关键词规则引擎，再兜底默认意图，保证路由 100% 可达。
+简历点：混合路由——LLM 主分类（OpenAI structured output json_schema，解析稳定），
+解析失败/低置信时降级到关键词规则引擎，再兜底默认意图，保证路由 100% 可达。
 """
-import json
-import re
-
 from app.agent.prompts import load_prompt
 from app.agent.state import ReviewState
 from app.core.config import get_settings
@@ -22,6 +19,16 @@ INTENT_KEYWORDS: dict[str, list[str]] = {
 
 RULE_FALLBACK_INTENT = "chat"
 
+INTENT_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "intent": {"type": "string", "enum": ["review", "compare", "chat", "admin"]},
+        "confidence": {"type": "number", "description": "0-1 置信度"},
+    },
+    "required": ["intent", "confidence"],
+    "additionalProperties": False,
+}
+
 
 def _rule_classify(text: str) -> tuple[str, float]:
     best_intent, best_score = RULE_FALLBACK_INTENT, 0.0
@@ -35,37 +42,25 @@ def _rule_classify(text: str) -> tuple[str, float]:
 async def _llm_classify(text: str) -> tuple[str, float] | None:
     try:
         prompt = load_prompt("intent")
-        raw = await get_sf_client().chat(
+        data = await get_sf_client().chat_structured(
             [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"用户请求：{text[:2000]}"},
             ],
+            json_schema=INTENT_SCHEMA,
             model=settings.llm_intent_model,
             temperature=0,
             max_tokens=256,
         )
-        data = _parse_json(raw)
+        if not data:
+            return None
         intent = data.get("intent")
         if intent not in {"review", "compare", "chat", "admin"}:
             return None
         confidence = float(data.get("confidence", 0.0))
         return intent, confidence
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
-
-
-def _parse_json(raw: str) -> dict:
-    raw = raw.strip()
-    try:
-        return json.loads(raw)
-    except Exception:
-        match = re.search(r"\{[\s\S]*\}", raw)
-        if match:
-            try:
-                return json.loads(match.group(0))
-            except Exception:
-                return {}
-    return {}
 
 
 async def intent_node(state: ReviewState) -> dict:
