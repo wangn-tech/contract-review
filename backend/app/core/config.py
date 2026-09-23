@@ -1,0 +1,91 @@
+"""Application configuration driven by environment variables (.env)."""
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # runtime
+    app_name: str = "contract-review"
+    app_env: str = "dev"
+    debug: bool = True
+    server_host: str = "0.0.0.0"
+    server_port: int = 8080
+
+    # mysql
+    mysql_host: str = "localhost"
+    mysql_port: int = 3306
+    mysql_user: str = "contract"
+    mysql_password: str = "change-me"
+    mysql_db: str = "contract_review"
+
+    # redis
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+
+    # jwt
+    jwt_secret_key: str = "change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+
+    # siliconflow
+    siliconflow_api_key: str = ""
+    siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
+    llm_review_model: str = "deepseek-ai/DeepSeek-V3.2"
+    llm_chat_model: str = "deepseek-ai/DeepSeek-V4-Flash"
+    llm_intent_model: str = "deepseek-ai/DeepSeek-V4-Flash"
+    embedding_model: str = "BAAI/bge-m3"
+    rerank_model: str = "BAAI/bge-reranker-v2-m3"
+
+    # qdrant
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
+    qdrant_collection_regulations: str = "kb_regulations"
+    qdrant_collection_institution: str = "kb_institution"
+    qdrant_collection_templates: str = "kb_templates"
+
+    # rag
+    rag_hybrid_top_k: int = 60
+    rag_rerank_top_k: int = 5
+    rag_query_variants: int = 3
+
+    # langfuse
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "http://localhost:3000"
+
+    # storage
+    upload_dir: str = "/data/uploads"
+    oss_bucket_dir: str = "/data/parsed"
+
+    # frontend / cas
+    frontend_url: str = "http://localhost:5173"
+    cas_server_url: str = ""
+
+    @property
+    def mysql_dsn(self) -> str:
+        return (
+            f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}"
+            f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_db}?charset=utf8mb4"
+        )
+
+    @property
+    def redis_url(self) -> str:
+        return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    @property
+    def qdrant_url(self) -> str:
+        return f"http://{self.qdrant_host}:{self.qdrant_port}"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
