@@ -748,7 +748,7 @@ bench = [
 ]
 eval = [
     { name = "datasets" },
-    { name = "langchain-community" },
+    { name = "langchain-openai" },
     { name = "ragas" },
 ]
 heavy-doc = [
@@ -762,6 +762,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "python-docx" },
+    { name = "redislite" },
     { name = "ruff" },
 ]
 
@@ -774,9 +775,9 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.141" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "jieba", specifier = ">=0.42" },
-    { name = "langchain-community", marker = "extra == 'eval'", specifier = "<0.4" },
     { name = "langchain-core", specifier = ">=1.6" },
     { name = "langchain-openai", specifier = ">=1.6" },
+    { name = "langchain-openai", marker = "extra == 'eval'", specifier = ">=0.3" },
     { name = "langfuse", specifier = ">=2.55" },
     { name = "langgraph", specifier = ">=1.2" },
     { name = "locust", marker = "extra == 'bench'", specifier = ">=2.46" },
@@ -811,6 +812,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.25" },
     { name = "python-docx", specifier = ">=1.2.0" },
+    { name = "redislite", specifier = ">=6.2.9" },
     { name = "ruff", specifier = ">=0.11" },
 ]
 
@@ -5235,6 +5237,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25", size = 5254356, upload-time = "2026-07-30T08:51:00.269Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb", size = 560618, upload-time = "2026-07-30T08:50:58.497Z" },
+]
+
+[[package]]
+name = "redislite"
+version = "6.2.912183"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "psutil" },
+    { name = "redis" },
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/af/7d/b6fc82af45ed2aa31f6c8b2035df009ff9fd8be01ad8a691155cc167f1f2/redislite-6.2.912183.tar.gz", hash = "sha256:40642495cc53bd5ca3cc186355a7235795ef4b36dd167cb77c7e6837d23e5dd6", size = 2555087, upload-time = "2023-12-01T22:19:28.526Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/21/2f/13e658f12163e716557d057bd7975dcef3b048dc03424418cc1e7b5f6b63/redislite-6.2.912183-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d5ed8af4d03225a9b19e279d40f8d8feae872f87a9cd9f017751864fe7b224c6", size = 6071179, upload-time = "2023-12-01T22:22:10.733Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/b9/95ce807b397428704bfc01769848d0caa8417e7d3753785ccc14c3b05097/redislite-6.2.912183-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6610f867c2c1b2022613c093d56cfe8293bdf6e081d2259d62b5f5318487c30e", size = 6071189, upload-time = "2023-12-01T22:22:13.983Z" },
 ]
 
 [[package]]

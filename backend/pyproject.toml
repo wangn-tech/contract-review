@@ -39,7 +39,8 @@ dependencies = [
 eval = [
     "ragas>=0.4,<0.5",
     "datasets>=2.19",
-    "langchain-community<0.4",
+    # RAGAS LLM-as-judge 兼容层：官方推荐 LangchainEmbeddingsWrapper（AnswerRelevancy 依赖 embed_query）
+    "langchain-openai>=0.3",
 ]
 bench = [
     "locust>=2.46",
@@ -77,6 +78,8 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "ruff>=0.11",
+    # 本地开发：嵌入式 Redis 模拟（无 Docker 环境替代 redis-server）
+    "redislite>=6.2.9",
 ]
 
 [tool.hatch.build.targets.wheel]

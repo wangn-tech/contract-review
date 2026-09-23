@@ -30,6 +30,22 @@
 
 > \* AnswerRelevancy 口径说明：v2 使用 golden set 的**短参考答案**作为 response 评测，短答案与问题的余弦相关天然偏低；v1 使用 LLM 生成长答案。上下文类指标（Context Precision/Recall）显著提升，是检索链路修复的直接体现。若需与 v1 严格同口径，可改用 LLM 生成答案再评测（见 §4 建议）。
 
+### 2.6 v3 实测（2026-09-23，10 条代表 case × 6 维度，LLM 生成答案 + 真实检索上下文，ragas 0.4.3）
+
+入口：`uv run --extra eval python scripts/eval_ragas.py --cases 10`（检索 top_k=5 → DeepSeek-V4-Flash 生成答案 → RAGAS 四指标，LLM-as-judge）。
+
+| 指标 | v1 | v2 | **v3** | 说明 |
+|---|---|---|---|---|
+| Faithfulness | 0.6375 | 0.6750 | **0.836**（n=8） | 答案忠于检索上下文（2 条空上下文无法评分，剔除） |
+| Answer Relevancy | 0.6853 | 0.5000* | **0.662**（n=10） | 长答案口径，同 v1 |
+| Context Precision | 0.7333 | 0.7700 | **0.789**（n=10） | 检索上下文精炼度 |
+| Context Recall | 0.4333 | 0.7000 | **0.600**（n=10） | 上下文覆盖参考答案 |
+
+> - **v3 口径**：统一为 LLM 生成长答案（修复 v2 短答案导致的 AR 偏低）；覆盖 6 个风险维度各取代表 case。
+> - **CR 0.600 的 4 条 miss（R41/R50/R55/R07）**：检索未召回相关文档——语料仅 21 篇，涉"违约金约定/验收标准缺失/争议解决选择"的深大制度与法规原文缺失，属语料覆盖缺口（与 §5.2 的 11 条 Hit miss 同一根因）。
+> - **供应商限制**：ragas 默认请求 n=3 生成，SiliconFlow 返回 1（自动降级继续）；个别长输出触发 max_tokens 截断，建议 judge 用 `llm_factory` 传更大 max_tokens 或换强模型。
+> - **提升方向**：扩充语料（>50 篇）后 CR/F 预计随检索命中上升；faithfulness 0.836 已说明"生成忠于上下文"这一环节质量良好，瓶颈在召回端。
+
 ## 2.5 依赖冲突与解法（2026-09 实测，最终方案 ragas 0.4.3）
 
 - **ragas（0.2 / 0.4）均无条件 import `langchain_community.chat_models.vertexai`**（官方 main 分支仍未修复），而 langchain-community 0.4.2 已移除该模块 → ModuleNotFoundError。
