@@ -29,13 +29,20 @@ class TestRuleEngine:
 class TestRedisLock:
     @pytest.mark.asyncio
     async def test_acquire_release(self):
+        import fakeredis
+
+        from app.core import redis as redis_mod
         from app.core.cache import acquire_lock, release_lock
 
-        key, token = "test:lock", "tok-1"
-        assert await acquire_lock(key, token, ttl=5)
-        assert not await acquire_lock(key, "tok-2", ttl=5)  # 已被占用
-        await release_lock(key, token)
-        assert await acquire_lock(key, token, ttl=5)  # 释放后可再抢
+        redis_mod.redis_client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        try:
+            key, token = "test:lock", "tok-1"
+            assert await acquire_lock(key, token, ttl=5)
+            assert not await acquire_lock(key, "tok-2", ttl=5)  # 已被占用
+            await release_lock(key, token)
+            assert await acquire_lock(key, token, ttl=5)  # 释放后可再抢
+        finally:
+            redis_mod.redis_client = None
 
 
 class TestMCPServer:
