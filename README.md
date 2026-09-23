@@ -1,5 +1,7 @@
 # 高校合同智能审阅系统（Contract Review Agent）
 
+[![CI](https://github.com/wangn-tech/contract-review/actions/workflows/ci.yml/badge.svg)](https://github.com/wangn-tech/contract-review/actions/workflows/ci.yml)
+
 基于 **LangGraph Multi-Agent + 混合检索 RAG** 的高校合同智能审阅系统：上传合同 → Agent 并行审阅 6 个风险维度 → SSE 实时推送风险点 → 比对 / 问答 / 看板，配套 Docker Compose 一键部署、GitHub Actions CI、Langfuse 可观测与 Locust 压测。
 
 ## 架构
