@@ -1,33 +1,30 @@
-# 简历项目：高校采购合同智能审阅 Agent
+# 简历项目：AI 智能合同审阅平台
 
-> 面向 Agent 应用开发方向的秋招简历素材，按"项目名 / 技术栈 / 项目亮点"组织，所有指标均来自项目实测。
+> 秋招简历正文优化版（按用户原稿结构重写），所有指标均来自项目实测。
 
-## 项目名
+**AI 智能合同审阅平台**
+2026.03 - 2026.06 | 个人学习实践项目
 
-高校采购合同智能审阅 Agent（Multi-Agent + RAG 的合同风险审查系统）
+**项目描述**：面向高校及企事业单位的合同审查场景，支持合同解析、风险审阅、合同比对和合同问答。围绕长合同处理和专业规则审查，引入多智能体工作流和 RAG 检索，将法规制度、审阅规则与合同内容结合，输出风险点及修改建议。
 
-## 技术栈
+**技术栈**：Python · FastAPI · SQLAlchemy · MySQL · Redis · LangChain · LangGraph · Qdrant · Langfuse · Docker · GitHub Actions
 
-Python / FastAPI / LangGraph 1.x / OpenAI SDK / Qdrant / Redis / MySQL / Docker / GitHub Actions / RAGAS（前端 Vue3+TS，不作为简历重点）
+**项目亮点**：
 
-## 项目亮点
+1. **多智能体审阅**：使用 LangGraph 编排 Router / Specialist / Gate / Arbitration 审阅流程，Router 拆分并路由审阅任务，多个 Specialist 并行分析不同风险维度，经 Gate 校验和 Arbitration 仲裁合并审阅结果；意图识别失败按规则降级兜底，保证流程可用性。
 
-**1. LangGraph Multi-Agent 编排（核心亮点）**
-- 构建「意图识别 → 六路专家并行审阅 → 门控 Gate → 仲裁 Arbitration」多 Agent 编排图；意图识别失败时按规则降级兜底，专家节点按风险维度（主体资格/财务付款/知识产权保密/违约责任/验收质保/争议管辖）并行抽取风险点，仲裁合并去重后输出结构化审阅报告
-- 全链路 SSE 真流式输出，首 Token 延迟（TTFT）从 172.9s 优化至 37.1s（性能优化 4.7 倍）
-- 基于 MCP 2.x 暴露检索/解析工具、注入规则 Skills，Agent 具备工具调用与规则约束能力
+2. **RAG 法规检索**：使用 Qdrant 存储法规、制度、合同模板等知识数据，构建 bge-m3 Embedding 召回 + BM25 多路检索 + RRF 融合 + Rerank 精排的完整检索链路，跨三层知识库召回相关规则并作为上下文交给模型判断；自建 100 条 golden set 评测，修复检索链路关键 bug 后 Recall@5 由 0.40 提升至 0.68、MRR 0.18→0.65。
 
-**2. RAG 检索与评测工程（核心亮点）**
-- 混合检索全链路：bge-m3 稠密向量 + BM25 稀疏召回 → RRF 融合 → bge-reranker-v2-m3 精排；跨法规 / 校内制度 / 合同模板三层知识库分层多路召回，Qdrant 向量库 + 持久化 BM25 索引
-- 多引擎文档解析（MinerU / Docling / DeepSeek-OCR / PyMuPDF / pdfplumber / LibreOffice 等 10 种），支持 PDF / DOCX / 扫描件多格式
-- 自建 golden set（100 条）与 RAGAS 0.4.3 评测体系，修复 rerank 索引错位、单库过滤等检索链路 bug 后：Recall@5 0.40→0.68、MRR 0.18→0.65、NDCG@5 0.26→0.63、RAGAS ContextRecall 0.43→0.70
+3. **长文档并发审阅**：集成 MinerU、Docling、OCR 等 10 种解析引擎解析 PDF、Word 及扫描件，对解析结果分块并并发执行审阅任务，按原始条款顺序合并风险项和修改建议；全链路 SSE 流式输出，首 Token 延迟由 172.9s 优化至 37.1s（4.7 倍）。
 
-**3. 后端工程化**
-- FastAPI + JWT 认证（预留 CAS 对接接口）+ Redis 缓存 / 分布式锁 + 全局鉴权 / 限流中间件 + 统一响应结构，Swagger / ReDoc 自动文档
-- 基于 OpenAI SDK 统一接入大模型，供应商（SiliconFlow / OpenAI 等）通过环境变量一键切换
-- Docker Compose 一键部署 + GitHub Actions CI 全绿（lint / 测试 / 前端构建 / 镜像构建）+ Langfuse 可观测 + Locust 压测（SSE 平均 120ms，6 并发 0 失败）
+4. **审阅规则配置**：将 Prompt 拆分为系统级、机构级和个性化配置，支持按合同类型和审阅场景组合不同规则；基于 OpenAI SDK 统一接入大模型，LLM 供应商可通过环境变量一键切换，减少新增审阅场景时的代码改动。
 
-## 使用建议（秋招版）
+5. **工程化与链路追踪**：JWT 认证 + Redis 缓存与分布式锁 + 限流中间件；Docker Compose 一键部署，GitHub Actions CI 全绿；接入 Langfuse 记录 Agent 执行、RAG 检索和模型调用过程，便于定位检索、Prompt 或模型调用问题。
 
-- 简历正文 3-4 行即可：取亮点 1 与 2 各压缩为一句，亮点 3 选「FastAPI + JWT + Redis + CI」一句带过，量化数字保留。
-- 面试可展开：意图识别与规则降级的设计取舍、RRF 融合为什么优于分数归一化、rerank 索引 bug 的排查过程（体现 debug 与评测驱动优化）。
+---
+
+## 面试可展开（不写入简历）
+
+- **设计取舍**：为什么 Router 拆分 + Specialist 并行 + Gate/Arbitration，而不是单一 LLM 一次审阅；意图识别降级策略的设计。
+- **RAG 细节**：RRF 融合为什么优于分数归一化直接相加；bge-m3（dense）与 BM25（sparse）互补点；三库分层召回解决什么问题。
+- **排查案例**：rerank 索引错位导致排序退化的定位过程（体现评测驱动优化：golden set + 指标对比发现回归）。
