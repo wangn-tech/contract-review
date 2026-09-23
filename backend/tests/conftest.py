@@ -18,6 +18,31 @@ from app.core.db import Base, engine, get_db
 from app.main import app
 
 
+class FakeLLMClient:
+    """全局替换 LLM 客户端：CI/本地测试均不依赖真实 API key。"""
+
+    async def chat(self, *args, **kwargs):
+        return "{}"
+
+    async def chat_stream(self, *args, **kwargs):
+        yield "[STREAM_DONE]"
+
+    async def embed(self, texts: list[str], *args, **kwargs):
+        return [[0.0] * 1024 for _ in texts]
+
+    async def rerank(self, query: str, docs: list[str], *args, **kwargs):
+        return [{"index": i, "relevance_score": 0.0} for i in range(len(docs))]
+
+
+@pytest.fixture(autouse=True)
+def _mock_llm_client(monkeypatch):
+    """避免任何测试路径构造真实 AsyncOpenAI（无 key 时 OpenAI SDK 会抛
+    Missing credentials，CI 无 .env 即失败；本地通过是依赖 .env 的假象）。"""
+    from app.rag import client as client_mod
+
+    monkeypatch.setattr(client_mod, "get_sf_client", lambda: FakeLLMClient())
+
+
 @pytest.fixture()
 def client():
     # in-memory SQLite: create schema per test

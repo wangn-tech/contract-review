@@ -195,15 +195,15 @@ def extract_text_from_pdf(path: str) -> str:
     return extract_text_from_file(path, "pdf")
 
 
-def extract_contract_meta(text: str) -> dict:
-    """LLM 结构化抽取甲乙方与金额。"""
+async def extract_contract_meta(text: str) -> dict:
+    """LLM 结构化抽取甲乙方与金额（async；无凭据/超时等失败时返回空，不影响上传）。"""
     from app.rag.client import get_sf_client
 
-    sf = get_sf_client()
     try:
-        raw = sf.chat(messages=[{"role": "system", "content": EXTRACT_SYSTEM_PROMPT},
-                                {"role": "user", "content": text[:6000]}],
-                      model=settings.llm_chat_model, temperature=0, max_tokens=256)
+        sf = get_sf_client()
+        raw = await sf.chat(messages=[{"role": "system", "content": EXTRACT_SYSTEM_PROMPT},
+                                      {"role": "user", "content": text[:6000]}],
+                            model=settings.llm_chat_model, temperature=0, max_tokens=256)
         data = json.loads(raw)
         return {"party_a": data.get("party_a", ""), "party_b": data.get("party_b", ""), "amount": data.get("amount", "")}
     except Exception:  # noqa: BLE001
@@ -227,7 +227,7 @@ def extract_text_from_doc(path: str) -> str:
 
 async def extract_contract_info(text: str) -> dict:
     """LLM 结构化抽取甲乙方与金额（async 包装）。"""
-    return extract_contract_meta(text)
+    return await extract_contract_meta(text)
 
 
 def _parse_json(raw: str) -> dict:
