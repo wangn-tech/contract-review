@@ -4,7 +4,6 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev-groups --no-install-project
 COPY app ./app
-COPY scripts ./scripts
 
 # ---- backend runtime ----
 FROM python:3.12-slim-bookworm AS runtime
