@@ -77,6 +77,7 @@ docker compose -f deploy/docker-compose.yml exec backend python scripts/ingest_k
 
 | 文档 | 内容 |
 |---|---|
+| [`AGENTS.md`](AGENTS.md) | AI Agent（Codex / Claude Code 等）接手改代码的仓库指南：结构、命令、硬性约束、陷阱清单 |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | 详细设计：总体架构、Agent 状态机、RAG 检索链路、数据库设计与 E-R 图、Docker 编排、CI 流水线 |
 | [`docs/QUICKSTART.md`](docs/QUICKSTART.md) | 启动与测试指南：Docker 一键 / 本地开发 / 测试矩阵 / 压测 / 常见问题 |
 | [`docs/benchmark.md`](docs/benchmark.md) | 性能压测报告（Locust：TTFT / 完整时长 / 成功率，待环境跑完回填） |
