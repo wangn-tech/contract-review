@@ -32,7 +32,7 @@ services:
       retries: 10
 
   qdrant:
-    image: qdrant/qdrant:v1.12.5
+    image: qdrant/qdrant:v1.19.1
     container_name: cr-qdrant
     volumes:
       - cr_qdrant:/qdrant/storage
@@ -71,6 +71,7 @@ services:
       - ../.env
     environment:
       APP_ENV: prod
+      DEBUG: "false"
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: contract
@@ -80,10 +81,9 @@ services:
       REDIS_PORT: 6379
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-jwt-secret}
-      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      # These credentials come from env_file above.  Do not redeclare them
+      # with ${...:-}: Compose interpolation happens before env_file is read,
+      # so an unset shell variable would overwrite the value with an empty one.
       LANGFUSE_HOST: http://langfuse:3000
       FRONTEND_URL: http://localhost:80
       UPLOAD_DIR: /data/uploads
