@@ -42,24 +42,41 @@ services:
       timeout: 5s
       retries: 10
 
+  langfuse-db:
+    image: postgres:16-alpine
+    container_name: cr-langfuse-db
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: change-me-langfuse-db
+      POSTGRES_DB: langfuse
+    volumes:
+      - cr_langfuse_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   langfuse:
     image: langfuse/langfuse:2
     container_name: cr-langfuse
     environment:
-      DATABASE_URL: sqlite:/data/langfuse.db
-      NEXTAUTH_URL: http://localhost:3000
+      DATABASE_URL: postgresql://langfuse:change-me-langfuse-db@langfuse-db:5432/langfuse
+      HOSTNAME: 0.0.0.0
+      NEXTAUTH_URL: http://localhost:13000
       NEXTAUTH_SECRET: change-me-nextauth-secret
       SALT: change-me-salt
-      ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
-    volumes:
-      - cr_langfuse:/data
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     ports:
-      - "3000:3000"
+      - "13000:3000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/public/health"]
       interval: 15s
       timeout: 5s
       retries: 10
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
 
   backend:
     build:
@@ -126,5 +143,5 @@ volumes:
   cr_mysql:
   cr_redis:
   cr_qdrant:
-  cr_langfuse:
+  cr_langfuse_db:
   cr_parsed:
